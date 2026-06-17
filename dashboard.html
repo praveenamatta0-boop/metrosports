@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NSL Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Syne',sans-serif;background:#08080e;color:#f0f0f0;min-height:100vh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0a0a12}::-webkit-scrollbar-thumb{background:#222235;border-radius:2px}
+.hidden{display:none!important}
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:#101018;border:1px solid #1e1e2e;border-radius:20px;padding:44px 40px;width:340px}
+.login-box h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px}
+.login-sub{font-size:11px;color:#444;font-family:'DM Mono',monospace;text-align:center;margin-bottom:28px}
+.logo{font-size:36px;text-align:center;margin-bottom:10px}
+input{width:100%;background:#0e0e1a;border:1px solid #1e1e2e;border-radius:10px;padding:12px 14px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:14px;margin-bottom:12px;outline:none;transition:border .15s}
+input:focus{border-color:#c8f03a50}
+.btn-primary{width:100%;background:#c8f03a;color:#08080e;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer}
+.btn-primary:hover{background:#b8e030}
+.err{color:#e05555;font-size:13px;margin-bottom:10px;text-align:center}
+header{padding:12px 28px;border-bottom:1px solid #12121e;display:flex;align-items:center;justify-content:space-between;background:#08080e;position:sticky;top:0;z-index:50}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:32px;height:32px;background:#c8f03a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.brand-name{font-weight:800;font-size:14px}
+.brand-sub{font-size:10px;color:#444;font-family:'DM Mono',monospace}
+nav{display:flex;gap:3px;background:#0e0e1a;border-radius:10px;padding:3px}
+.nav-btn{background:none;border:none;cursor:pointer;padding:8px 16px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;color:#555;transition:all .15s}
+.nav-btn.on{background:#c8f03a;color:#08080e}
+.nav-btn:hover:not(.on){color:#ddd;background:#13131f}
+.hdr-actions{display:flex;gap:8px}
+.btn-sm{background:#13131f;border:1px solid #1e1e2e;border-radius:8px;padding:7px 14px;color:#777;cursor:pointer;font-family:'Syne',sans-serif;font-size:12px}
+.btn-sm:hover{color:#ccc}
+main{max-width:1100px;margin:0 auto;padding:28px 20px}
+.tag{font-size:10px;color:#444;font-family:'DM Mono',monospace;font-weight:500;letter-spacing:.5px;margin-bottom:10px}
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
+.stat-card{background:#101018;border:1px solid #18182a;border-radius:14px;padding:20px}
+.stat-icon{font-size:20px;margin-bottom:6px}
+.stat-val{font-size:26px;font-weight:800;margin-bottom:3px}
+.stat-lbl{font-size:11px;color:#444;font-weight:600}
+.games-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.game-chip{background:#101018;border:1px solid #18182a;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:9px}
+.chip-name{font-weight:700;font-size:12px}
+.chip-rate{font-size:10px;color:#c8f03a;font-family:'DM Mono',monospace}
+.bcard{background:#101018;border:1px solid #18182a;border-radius:12px;padding:18px;cursor:pointer;transition:all .15s;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.bcard:hover{border-color:#c8f03a60;transform:translateY(-1px)}
+.bcard-left{display:flex;align-items:center;gap:12px}
+.bcard-icon{font-size:22px}
+.bcard-name{font-weight:700;font-size:14px}
+.bcard-phone{font-weight:400;color:#555;font-size:12px;margin-left:6px}
+.bcard-meta{font-size:11px;color:#555;margin-top:2px}
+.bcard-id{font-size:10px;color:#333;font-family:'DM Mono',monospace;margin-top:3px}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:.5px}
+.pill-ok{background:#182a18;color:#5dd85d}
+.pill-no{background:#2a1818;color:#d85d5d}
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.search-inp{background:#0e0e1a;border:1px solid #18182a;border-radius:9px;padding:9px 13px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:13px;outline:none;width:220px}
+.search-inp:focus{border-color:#c8f03a50}
+.filter-row{display:flex;gap:7px}
+.fbtn{background:none;border:1px solid #18182a;cursor:pointer;padding:5px 13px;border-radius:20px;font-family:'Syne',sans-serif;font-size:12px;color:#666;transition:all .15s}
+.fbtn.on{border-color:#c8f03a;color:#c8f03a;background:#c8f03a10}
+.fbtn:hover:not(.on){border-color:#2a2a3a;color:#ccc}
+.empty{text-align:center;padding:60px 0;color:#333}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.avail-legend{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-family:'DM Mono',monospace}
+.leg-dot{width:10px;height:10px;border-radius:3px}
+.sel-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.gbtn{cursor:pointer;border:1px solid #18182a;background:none;border-radius:8px;padding:7px 13px;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:#777;transition:all .15s}
+.gbtn.on{border-color:#c8f03a;color:#c8f03a;background:#c8f03a12}
+.gbtn:hover:not(.on){border-color:#2a2a3a;color:#ccc}
+.dbtn{cursor:pointer;border:1px solid #18182a;background:none;border-radius:8px;padding:6px 11px;font-family:'DM Mono',monospace;font-size:11px;color:#666;transition:all .15s}
+.dbtn.on{border-color:#c8f03a80;color:#c8f03a;background:#c8f03a10}
+.dbtn:hover:not(.on){border-color:#2a2a3a;color:#bbb}
+.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;margin-top:14px}
+.slot{border-radius:8px;padding:10px 12px;text-align:center;font-family:'DM Mono',monospace}
+.slot-time{font-weight:700;font-size:13px;margin-bottom:3px}
+.slot-count{font-size:10px;color:#444;margin-top:2px}
+.slot-free{background:#0f2010;border:1px solid #1a3520}
+.slot-part{background:#201808;border:1px solid #352a10}
+.slot-full{background:#200808;border:1px solid #351010}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:#101018;border:1px solid #25253a;border-radius:20px;padding:28px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.modal-title{font-weight:800;font-size:17px}
+.close-btn{background:none;border:none;color:#444;cursor:pointer;font-size:20px}
+.modal-center{text-align:center;margin-bottom:20px}
+.modal-big{font-size:42px}
+.modal-id{font-family:'DM Mono',monospace;font-size:12px;color:#c8f03a;margin-top:6px}
+.drow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #14141e}
+.dlbl{color:#444;font-size:13px}
+.dval{font-weight:600;font-size:13px}
+.btn-cancel{width:100%;margin-top:20px;background:#2a1010;border:1px solid #d85d5d30;color:#d85d5d;border-radius:10px;padding:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
+.view-all{background:none;border:1px solid #18182a;border-radius:10px;padding:10px;color:#555;cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;width:100%;margin-top:4px}
+.view-all:hover{border-color:#2a2a3a;color:#ccc}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="logo">&#127967;</div>
+    <h1>Nagole Sports Lounge</h1>
+    <div class="login-sub">Admin Dashboard</div>
+    <div class="err hidden" id="login-err">Invalid username or password.</div>
+    <input id="u" placeholder="Username" autocomplete="username"/>
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password"/>
+    <button class="btn-primary" id="login-btn">Sign In</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">&#127967;</div>
+      <div>
+        <div class="brand-name">Nagole Sports Lounge</div>
+        <div class="brand-sub">Admin Dashboard</div>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-btn on" id="nb-dashboard" onclick="showView('dashboard')">Dashboard</button>
+      <button class="nav-btn" id="nb-bookings"  onclick="showView('bookings')">Bookings</button>
+      <button class="nav-btn" id="nb-avail"     onclick="showView('availability')">Availability</button>
+    </nav>
+    <div class="hdr-actions">
+      <button class="btn-sm" onclick="loadAll()">&#8635; Refresh</button>
+      <button class="btn-sm" onclick="doLogout()">Sign out</button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard">
+    <main>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">&#128222;</div><div class="stat-val" id="s-total" style="color:#c8f03a">-</div><div class="stat-lbl">Total Calls</div></div>
+        <div class="stat-card"><div class="stat-icon">&#9989;</div><div class="stat-val" id="s-conf" style="color:#5dd85d">-</div><div class="stat-lbl">Confirmed</div></div>
+        <div class="stat-card"><div class="stat-icon">&#128197;</div><div class="stat-val" id="s-today" style="color:#5db0de">-</div><div class="stat-lbl">Today</div></div>
+        <div class="stat-card"><div class="stat-icon">&#10060;</div><div class="stat-val" id="s-cancel" style="color:#d85d5d">-</div><div class="stat-lbl">Cancelled</div></div>
+        <div class="stat-card"><div class="stat-icon">&#128176;</div><div class="stat-val" id="s-rev" style="color:#e8c43a">-</div><div class="stat-lbl">Est. Revenue</div></div>
+      </div>
+      <div class="tag">GAMES &amp; PRICING</div>
+      <div class="games-row">
+        <div class="game-chip"><span>&#127921;</span><div><div class="chip-name">Pool Table</div><div class="chip-rate">&#8377;300/hr &middot; 4 courts</div></div></div>
+        <div class="game-chip"><span>&#127959;</span><div><div class="chip-name">Cricket Pitch</div><div class="chip-rate">&#8377;800/hr &middot; 2 pitches</div></div></div>
+        <div class="game-chip"><span>&#127952;</span><div><div class="chip-name">Beach Volleyball</div><div class="chip-rate">&#8377;500/hr &middot; 2 courts</div></div></div>
+        <div class="game-chip"><span>&#127955;</span><div><div class="chip-name">Table Tennis</div><div class="chip-rate">&#8377;250/hr &middot; 3 tables</div></div></div>
+        <div class="game-chip"><span>&#127992;</span><div><div class="chip-name">Badminton</div><div class="chip-rate">&#8377;400/hr &middot; 2 courts</div></div></div>
+      </div>
+      <div class="tag">RECENT BOOKINGS</div>
+      <div id="recent-list"></div>
+    </main>
+  </div>
+
+  <!-- BOOKINGS -->
+  <div id="view-bookings" class="hidden">
+    <main>
+      <div class="toolbar">
+        <div class="tag" style="margin:0" id="bcount">ALL BOOKINGS</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="search-inp" id="search" placeholder="Search name, phone, ID..." oninput="renderBookings()"/>
+          <div class="filter-row">
+            <button class="fbtn on" onclick="setFilter('all',this)">All</button>
+            <button class="fbtn"    onclick="setFilter('confirmed',this)">Confirmed</button>
+            <button class="fbtn"    onclick="setFilter('cancelled',this)">Cancelled</button>
+          </div>
+        </div>
+      </div>
+      <div id="bookings-list"></div>
+    </main>
+  </div>
+
+  <!-- AVAILABILITY -->
+  <div id="view-availability" class="hidden">
+    <main>
+      <div class="tag">SLOT AVAILABILITY</div>
+      <div class="avail-legend">
+        <div class="leg-item"><div class="leg-dot" style="background:#5dd85d"></div>Available</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#e8c43a"></div>Partial</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#d85d5d"></div>Full</div>
+      </div>
+      <div class="sel-row" id="game-sel"></div>
+      <div class="sel-row" id="date-sel"></div>
+      <div id="slot-area"></div>
+    </main>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay hidden" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">Booking Details</div>
+      <button class="close-btn" id="close-modal">&#10005;</button>
+    </div>
+    <div class="modal-center">
+      <div class="modal-big" id="m-icon"></div>
+      <div class="modal-id"  id="m-id"></div>
+      <div style="margin-top:8px" id="m-pill"></div>
+    </div>
+    <div id="m-body"></div>
+    <button class="btn-cancel hidden" id="m-cancel">Cancel Booking</button>
+  </div>
+</div>
+
+<script>
+var ICONS = {pool:"&#127921;",cricket:"&#127959;",volleyball:"&#127952;",table_tennis:"&#127955;",badminton:"&#127992;"};
+var token = localStorage.getItem("nsl_token") || "";
+var allBookings = [], availData = null, curFilter = "all";
+var selGame = "pool", selDate = 0, selectedId = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function doLogin() {
+  var u = document.getElementById("u").value;
+  var p = document.getElementById("p").value;
+  var err = document.getElementById("login-err");
+  err.classList.add("hidden");
+  fetch("/api/login", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:u, password:p})
+  })
+  .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+  .then(function(d){
+    token = d.token;
+    localStorage.setItem("nsl_token", token);
+    document.getElementById("login-screen").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    loadAll();
+  })
+  .catch(function(){ err.classList.remove("hidden"); });
+}
+
+document.getElementById("login-btn").addEventListener("click", doLogin);
+document.getElementById("p").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
+
+function doLogout() {
+  localStorage.removeItem("nsl_token");
+  token = "";
+  location.reload();
+}
+
+function api(path, opts) {
+  opts = opts || {};
+  opts.headers = opts.headers || {};
+  opts.headers["Authorization"] = "Bearer " + token;
+  opts.headers["Content-Type"] = "application/json";
+  return fetch(path, opts).then(function(r){
+    if(r.status===401){ doLogout(); return null; }
+    return r.json();
+  });
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+function loadAll() {
+  Promise.all([
+    api("/api/bookings"),
+    api("/api/stats"),
+    api("/api/availability")
+  ]).then(function(results){
+    if(results[0]) allBookings = results[0];
+    if(results[1]) renderStats(results[1]);
+    if(results[2]){ availData = results[2]; renderAvail(); }
+    renderBookings();
+    renderRecent();
+  });
+}
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+function showView(v) {
+  ["dashboard","bookings","availability"].forEach(function(id){
+    document.getElementById("view-"+id).classList.toggle("hidden", id!==v);
+    document.getElementById("nb-"+id).classList.toggle("on", id===v);
+  });
+  document.getElementById("nb-avail").classList.toggle("on", v==="availability");
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats(s) {
+  document.getElementById("s-total").textContent  = s.total;
+  document.getElementById("s-conf").textContent   = s.confirmed;
+  document.getElementById("s-today").textContent  = s.today;
+  document.getElementById("s-cancel").textContent = s.cancelled;
+  document.getElementById("s-rev").textContent    = s.revenue ? "\u20B9"+s.revenue : "-";
+}
+
+// ── Booking card ──────────────────────────────────────────────────────────────
+function makeCard(b, onclick) {
+  var icon = ICONS[b.gameId] || "&#127918;";
+  var pill = b.status==="confirmed"
+    ? '<span class="pill pill-ok">CONFIRMED</span>'
+    : '<span class="pill pill-no">CANCELLED</span>';
+  var div = document.createElement("div");
+  div.className = "bcard";
+  div.onclick = onclick;
+  div.innerHTML =
+    '<div class="bcard-left">' +
+      '<span class="bcard-icon">' + icon + '</span>' +
+      '<div>' +
+        '<div><span class="bcard-name">' + esc(b.name) + '</span><span class="bcard-phone">&middot; ' + esc(b.phone) + '</span></div>' +
+        '<div class="bcard-meta">' + esc(b.gameName) + ' &middot; ' + esc(b.date) + ' &middot; ' + esc(b.timeSlot) + ' &middot; ' + esc(b.group) + ' &middot; ' + esc(b.pay) + '</div>' +
+        '<div class="bcard-id">#' + esc(b.id) + ' &middot; ' + new Date(b.createdAt).toLocaleString("en-IN") + ' &middot; ' + (b.lang||"en").toUpperCase() + '</div>' +
+      '</div>' +
+    '</div>' + pill;
+  return div;
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Recent ────────────────────────────────────────────────────────────────────
+function renderRecent() {
+  var el = document.getElementById("recent-list");
+  el.innerHTML = "";
+  var list = allBookings.slice(0,5);
+  if(!list.length) { el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings yet</div></div>'; return; }
+  list.forEach(function(b){
+    el.appendChild(makeCard(b, function(){ openModal(b.id); }));
+  });
+  if(allBookings.length>5) {
+    var btn = document.createElement("button");
+    btn.className = "view-all";
+    btn.textContent = "View all " + allBookings.length + " bookings \u2192";
+    btn.onclick = function(){ showView("bookings"); };
+    el.appendChild(btn);
+  }
+}
+
+// ── Bookings ──────────────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll(".fbtn").forEach(function(b){ b.classList.remove("on"); });
+  btn.classList.add("on");
+  renderBookings();
+}
+
+function renderBookings() {
+  var search = (document.getElementById("search") ? document.getElementById("search").value : "").toLowerCase();
+  var list = allBookings.filter(function(b){
+    if(curFilter!=="all" && b.status!==curFilter) return false;
+    if(search && !((b.name||"")+" "+(b.phone||"")+" "+(b.id||"")+" "+(b.gameName||"")).toLowerCase().includes(search)) return false;
+    return true;
+  });
+  var cnt = document.getElementById("bcount");
+  if(cnt) cnt.textContent = "ALL BOOKINGS (" + list.length + ")";
+  var el = document.getElementById("bookings-list");
+  if(!el) return;
+  el.innerHTML = "";
+  if(!list.length) { el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings found</div></div>'; return; }
+  list.forEach(function(b){
+    el.appendChild(makeCard(b, function(){ openModal(b.id); }));
+  });
+}
+
+// ── Availability ──────────────────────────────────────────────────────────────
+function renderAvail() {
+  if(!availData) return;
+  var games = availData.games;
+  var dates = availData.dates;
+  var grid  = availData.grid;
+
+  var gsel = document.getElementById("game-sel");
+  gsel.innerHTML = "";
+  games.forEach(function(g){
+    var btn = document.createElement("button");
+    btn.className = "gbtn" + (selGame===g.id?" on":"");
+    btn.innerHTML = (ICONS[g.id]||"") + " " + g.name;
+    btn.onclick = function(){ selGame=g.id; renderAvail(); };
+    gsel.appendChild(btn);
+  });
+
+  var dsel = document.getElementById("date-sel");
+  dsel.innerHTML = "";
+  dates.forEach(function(d,i){
+    var btn = document.createElement("button");
+    btn.className = "dbtn" + (selDate===i?" on":"");
+    btn.textContent = d.label;
+    btn.onclick = function(){ selDate=i; renderAvail(); };
+    dsel.appendChild(btn);
+  });
+
+  var curDate = dates[selDate];
+  var filtered = grid.filter(function(r){ return r.gameId===selGame && r.dateKey===curDate.key; });
+  var gObj = games.find(function(g){ return g.id===selGame; });
+
+  var area = document.getElementById("slot-area");
+  area.innerHTML = '<div style="font-weight:700;font-size:13px;color:#c8f03a;margin-bottom:12px">' +
+    (ICONS[selGame]||"") + " " + (gObj?gObj.name:"") + " &middot; " + curDate.label + '</div>';
+
+  var sgrid = document.createElement("div");
+  sgrid.className = "slot-grid";
+  filtered.forEach(function(s){
+    var pct = s.booked/s.gameMax;
+    var cls = pct===0?"slot-free":pct<1?"slot-part":"slot-full";
+    var col = pct===0?"#5dd85d":pct<1?"#e8c43a":"#d85d5d";
+    var div = document.createElement("div");
+    div.className = "slot " + cls;
+    div.innerHTML =
+      '<div class="slot-time" style="color:'+col+'">'+s.timeSlot+'</div>' +
+      '<div style="color:'+col+';font-size:11px">'+(s.available>0?s.available+' free':'Full')+'</div>' +
+      '<div class="slot-count">'+s.booked+'/'+s.gameMax+'</div>';
+    sgrid.appendChild(div);
+  });
+  area.appendChild(sgrid);
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  var b = allBookings.find(function(x){ return x.id===id; });
+  if(!b) return;
+  selectedId = id;
+  document.getElementById("m-icon").innerHTML = ICONS[b.gameId]||"&#127918;";
+  document.getElementById("m-id").textContent  = "#"+b.id;
+  document.getElementById("m-pill").innerHTML   = b.status==="confirmed"
+    ? '<span class="pill pill-ok">CONFIRMED</span>'
+    : '<span class="pill pill-no">CANCELLED</span>';
+  var rows = [
+    ["Guest",b.name],["Phone",b.phone],["Game",b.gameName],
+    ["Date",b.date],["Time",b.timeSlot],["Group",b.group],
+    ["Payment",b.pay],["Language",(b.lang||"en").toUpperCase()],
+    ["Booked at",new Date(b.createdAt).toLocaleString("en-IN")]
+  ];
+  document.getElementById("m-body").innerHTML = rows.map(function(r){
+    return '<div class="drow"><span class="dlbl">'+esc(r[0])+'</span><span class="dval">'+esc(r[1])+'</span></div>';
+  }).join("");
+  var cb = document.getElementById("m-cancel");
+  if(b.status==="confirmed") cb.classList.remove("hidden"); else cb.classList.add("hidden");
+  document.getElementById("modal-overlay").classList.remove("hidden");
+}
+
+document.getElementById("close-modal").onclick = closeModal;
+document.getElementById("modal-overlay").onclick = function(e){ if(e.target===this) closeModal(); };
+
+function closeModal() {
+  document.getElementById("modal-overlay").classList.add("hidden");
+  selectedId = null;
+}
+
+document.getElementById("m-cancel").onclick = function() {
+  if(!selectedId) return;
+  api("/api/bookings/"+selectedId+"/cancel", {method:"PATCH"})
+    .then(function(){ closeModal(); loadAll(); });
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+if(token) {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  loadAll();
+}
+
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

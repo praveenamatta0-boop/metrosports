@@ -1,17 +1,13 @@
 {
-  "name": "aria-call-assistant",
+  "name": "nsl-call-assistant",
   "version": "1.0.0",
-  "description": "Arena Sports Hub AI Call Assistant",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
-  },
+  "scripts": { "start": "node index.js", "dev": "nodemon index.js" },
   "dependencies": {
     "express": "^4.18.2",
-    "twilio": "^4.19.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+    "twilio": "^4.19.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cors": "^2.8.5"
   }
 }

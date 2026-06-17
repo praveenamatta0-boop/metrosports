@@ -1,365 +1,438 @@
-const express = require("express");
-const twilio = require("twilio");
+const express  = require("express");
+const twilio   = require("twilio");
+const bcrypt   = require("bcryptjs");
+const jwt      = require("jsonwebtoken");
+const cors     = require("cors");
 const { VoiceResponse } = twilio.twiml;
 
 const app = express();
+app.use(cors());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-const ARENA_NAME = "Nagole Sports Lounge";
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const ARENA_NAME  = "Nagole Sports Lounge";
+const JWT_SECRET  = process.env.JWT_SECRET  || "nsl-secret-change-in-production";
+const ADMIN_USER  = process.env.ADMIN_USER  || "admin";
+const ADMIN_PASS  = process.env.ADMIN_PASS  || "nsl@1234";   // change in Render env vars
+const ADMIN_HASH  = bcrypt.hashSync(ADMIN_PASS, 10);
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const GAMES = [
-  { id: "pool",         name: "Pool Table",       rate: "300 rupees per hour" },
-  { id: "cricket",      name: "Cricket Pitch",    rate: "800 rupees per hour" },
-  { id: "volleyball",   name: "Beach Volleyball", rate: "500 rupees per hour" },
-  { id: "table_tennis", name: "Table Tennis",     rate: "250 rupees per hour" },
-  { id: "badminton",    name: "Badminton",        rate: "400 rupees per hour" },
+  { id: "pool",         name: "Pool Table",       rate: "300 rupees per hour",  maxSlots: 4 },
+  { id: "cricket",      name: "Cricket Pitch",    rate: "800 rupees per hour",  maxSlots: 2 },
+  { id: "volleyball",   name: "Beach Volleyball", rate: "500 rupees per hour",  maxSlots: 2 },
+  { id: "table_tennis", name: "Table Tennis",     rate: "250 rupees per hour",  maxSlots: 3 },
+  { id: "badminton",    name: "Badminton",        rate: "400 rupees per hour",  maxSlots: 2 },
 ];
 
-// Next 7 days
+const TIME_SLOTS = [
+  "8 AM","9 AM","10 AM","11 AM","12 PM",
+  "1 PM","2 PM","3 PM","4 PM","5 PM",
+  "6 PM","7 PM","8 PM","9 PM","10 PM"
+];
+
+const GROUP_SIZES = {
+  en: ["1 to 2 people","3 to 5 people","6 to 10 people","11 to 20 people","More than 20"],
+  hi: ["1 se 2 log","3 se 5 log","6 se 10 log","11 se 20 log","20 se zyada"],
+  te: ["1 to 2 mandi","3 to 5 mandi","6 to 10 mandi","11 to 20 mandi","20 kante ekkuva"],
+};
+
+// Booking store — in-memory (persists while server runs)
+// For production, replace with a database
+const bookings = [];
+
 function getAvailableDates() {
   const dates = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    dates.push(d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }));
+    dates.push({
+      label: d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }),
+      key:   d.toISOString().split("T")[0],
+    });
   }
   return dates;
 }
 
-// Hour slots 8 AM – 10 PM (last slot starts at 10 PM, ends 11 PM)
-const TIME_SLOTS = [
-  "8 AM", "9 AM", "10 AM", "11 AM",
-  "12 PM", "1 PM", "2 PM", "3 PM",
-  "4 PM", "5 PM", "6 PM", "7 PM",
-  "8 PM", "9 PM", "10 PM"
-];
+function getBookedCount(gameId, dateKey, timeSlot) {
+  return bookings.filter(b =>
+    b.gameId === gameId &&
+    b.dateKey === dateKey &&
+    b.timeSlot === timeSlot &&
+    b.status === "confirmed"
+  ).length;
+}
 
-const PAYMENT_METHODS = ["Cash", "Card", "UPI"];
+function isSlotAvailable(gameId, dateKey, timeSlot) {
+  const game = GAMES.find(g => g.id === gameId);
+  if (!game) return false;
+  return getBookedCount(gameId, dateKey, timeSlot) < game.maxSlots;
+}
 
-// ─── Multilingual Prompts ─────────────────────────────────────────────────────
+function getAvailableSlotsForGame(gameId, dateKey) {
+  return TIME_SLOTS.filter(ts => isSlotAvailable(gameId, dateKey, ts));
+}
+
+function generateId() {
+  return "NSL-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+}
+
+// ─── Multilingual Scripts ─────────────────────────────────────────────────────
 
 const LANG = {
   en: {
-    langCode: "en-IN",
-    voice: "Polly.Aditi",
-    greeting:    `Welcome to ${ARENA_NAME}. Press 1 for English. Press 2 for Hindi. Press 3 for Telugu.`,
-    askGame:     "Select your game. Press 1 for Pool Table. Press 2 for Cricket Pitch. Press 3 for Beach Volleyball. Press 4 for Table Tennis. Press 5 for Badminton.",
-    askDate:     (dates) => "Select date. " + dates.map((d, i) => `Press ${i + 1} for ${d}.`).join(" "),
-    askTimeA:    "Select time. Press 1 for 8 AM. Press 2 for 9 AM. Press 3 for 10 AM. Press 4 for 11 AM. Press 5 for 12 PM. Press 6 for 1 PM. Press 7 for 2 PM. Press 8 for more options.",
-    askTimeB:    "Press 1 for 3 PM. Press 2 for 4 PM. Press 3 for 5 PM. Press 4 for 6 PM. Press 5 for 7 PM. Press 6 for 8 PM. Press 7 for 9 PM. Press 8 for 10 PM.",
-    askGroup:    "How many people? Press 1 for 1 to 2. Press 2 for 3 to 5. Press 3 for 6 to 10. Press 4 for 11 to 20. Press 5 for more than 20.",
-    askPayment:  "Payment method. Press 1 for Cash. Press 2 for Card. Press 3 for UPI.",
-    askConfirm:  (s) => `Confirming your booking. ${s.game.name}. ${s.date}. ${s.time}. ${s.groupSize} people. Payment by ${s.payment}. Press 1 to confirm. Press 2 to cancel.`,
-    askName:     "Please say your name after the beep.",
-    askPhone:    "Please say your 10 digit mobile number after the beep.",
-    confirmed:   (s) => `Booking confirmed! Your ID is ${s.bookingId}. ${s.game.name} on ${s.date} at ${s.time}. See you at ${ARENA_NAME}. Goodbye!`,
-    cancelled:   "Booking cancelled. Thank you for calling. Goodbye.",
-    invalid:     "Invalid option. Please try again.",
-    notHeard:    "I did not get your response. Please try again.",
-    repeat:      "Press 9 to hear options again.",
+    langCode: "en-IN", voice: "Polly.Aditi",
+    greeting:   `Welcome to ${ARENA_NAME}. Press 1 for English. Press 2 for Hindi. Press 3 for Telugu.`,
+    askGame:    "Select your game. Press 1 for Pool Table. Press 2 for Cricket Pitch. Press 3 for Beach Volleyball. Press 4 for Table Tennis. Press 5 for Badminton.",
+    askDate:    (dates) => "Select date. " + dates.map((d,i) => `Press ${i+1} for ${d.label}.`).join(" "),
+    askTimeMenu:(slots)  => "Available slots. " + slots.map((s,i) => `Press ${i+1} for ${s}.`).join(" "),
+    noSlots:    "Sorry, no slots are available for that date and game. Press 1 to choose another date. Press 2 to choose another game.",
+    askGroup:   "How many people? Press 1 for 1 to 2. Press 2 for 3 to 5. Press 3 for 6 to 10. Press 4 for 11 to 20. Press 5 for more than 20.",
+    askName:    "Please say your name after the beep.",
+    askPhone:   "Please say or type your 10 digit mobile number.",
+    askPayment: "Payment method. Press 1 for Cash. Press 2 for Card. Press 3 for UPI.",
+    askConfirm: (s) => `Confirming: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.groupSize}, name ${s.name}, payment ${s.payment}. Press 1 to confirm. Press 2 to restart.`,
+    confirmed:  (s) => `Booking confirmed! Your ID is ${s.bookingId}. ${s.game.name} on ${s.date} at ${s.timeSlot}. See you at ${ARENA_NAME}! Goodbye.`,
+    restarted:  "Let's start over. " ,
+    invalid:    "Invalid option. Please try again. ",
+    notHeard:   "I did not catch that. Please try again. ",
+    goodbye:    `Thank you for calling ${ARENA_NAME}. Goodbye.`,
   },
   hi: {
-    langCode: "hi-IN",
-    voice: "Polly.Aditi",
-    greeting:    null,
-    askGame:     "Game chuniye. 1 dabaye Pool Table ke liye. 2 dabaye Cricket Pitch ke liye. 3 dabaye Beach Volleyball ke liye. 4 dabaye Table Tennis ke liye. 5 dabaye Badminton ke liye.",
-    askDate:     (dates) => "Date chuniye. " + dates.map((d, i) => `${i + 1} dabaye ${d} ke liye.`).join(" "),
-    askTimeA:    "Samay chuniye. 1 dabaye 8 AM. 2 dabaye 9 AM. 3 dabaye 10 AM. 4 dabaye 11 AM. 5 dabaye 12 PM. 6 dabaye 1 PM. 7 dabaye 2 PM. 8 dabaye aur options ke liye.",
-    askTimeB:    "1 dabaye 3 PM. 2 dabaye 4 PM. 3 dabaye 5 PM. 4 dabaye 6 PM. 5 dabaye 7 PM. 6 dabaye 8 PM. 7 dabaye 9 PM. 8 dabaye 10 PM.",
-    askGroup:    "Kitne log? 1 dabaye 1 se 2 log. 2 dabaye 3 se 5 log. 3 dabaye 6 se 10 log. 4 dabaye 11 se 20 log. 5 dabaye 20 se zyada.",
-    askPayment:  "Payment method. 1 dabaye Cash. 2 dabaye Card. 3 dabaye UPI.",
-    askConfirm:  (s) => `Booking confirm karein. ${s.game.name}. ${s.date}. ${s.time}. ${s.groupSize} log. ${s.payment} se payment. 1 dabaye confirm ke liye. 2 dabaye cancel ke liye.`,
-    askName:     "Beep ke baad apna naam boliye.",
-    askPhone:    "Beep ke baad apna 10 digit mobile number boliye.",
-    confirmed:   (s) => `Booking ho gayi! ID hai ${s.bookingId}. ${s.game.name}, ${s.date}, ${s.time}. ${ARENA_NAME} mein milte hain. Alvida!`,
-    cancelled:   "Booking cancel ho gayi. Dhanyavaad. Alvida.",
-    invalid:     "Galat option. Dobara try karein.",
-    notHeard:    "Response nahi mila. Dobara try karein.",
-    repeat:      "9 dabaye options sunne ke liye.",
+    langCode: "hi-IN", voice: "Polly.Aditi",
+    greeting:   null,
+    askGame:    "Game chuniye. 1 dabaye Pool Table. 2 dabaye Cricket Pitch. 3 dabaye Beach Volleyball. 4 dabaye Table Tennis. 5 dabaye Badminton.",
+    askDate:    (dates) => "Date chuniye. " + dates.map((d,i) => `${i+1} dabaye ${d.label}.`).join(" "),
+    askTimeMenu:(slots)  => "Available slots. " + slots.map((s,i) => `${i+1} dabaye ${s}.`).join(" "),
+    noSlots:    "Maaf kijiye, is date aur game ke liye koi slot available nahi hai. 1 dabaye doosri date ke liye. 2 dabaye doosra game ke liye.",
+    askGroup:   "Kitne log? 1 dabaye 1 se 2. 2 dabaye 3 se 5. 3 dabaye 6 se 10. 4 dabaye 11 se 20. 5 dabaye 20 se zyada.",
+    askName:    "Beep ke baad apna naam boliye.",
+    askPhone:   "Apna 10 digit mobile number boliye ya type kariye.",
+    askPayment: "Payment. 1 dabaye Cash. 2 dabaye Card. 3 dabaye UPI.",
+    askConfirm: (s) => `Confirm karein: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.groupSize}, naam ${s.name}, payment ${s.payment}. 1 dabaye confirm. 2 dabaye restart.`,
+    confirmed:  (s) => `Booking ho gayi! ID hai ${s.bookingId}. ${s.game.name}, ${s.date}, ${s.timeSlot}. ${ARENA_NAME} mein milte hain! Alvida.`,
+    restarted:  "Phir se shuru karte hain. ",
+    invalid:    "Galat option. Dobara try karein. ",
+    notHeard:   "Samajh nahi aaya. Dobara try karein. ",
+    goodbye:    `${ARENA_NAME} mein call karne ke liye shukriya. Alvida.`,
   },
   te: {
-    langCode: "te-IN",
-    voice: "Polly.Aditi",
-    greeting:    null,
-    askGame:     "Game select cheskoundi. 1 press chesthe Pool Table. 2 press chesthe Cricket Pitch. 3 press chesthe Beach Volleyball. 4 press chesthe Table Tennis. 5 press chesthe Badminton.",
-    askDate:     (dates) => "Date select cheskoundi. " + dates.map((d, i) => `${i + 1} press chesthe ${d}.`).join(" "),
-    askTimeA:    "Samayam select cheskoundi. 1 press chesthe 8 AM. 2 press chesthe 9 AM. 3 press chesthe 10 AM. 4 press chesthe 11 AM. 5 press chesthe 12 PM. 6 press chesthe 1 PM. 7 press chesthe 2 PM. 8 press chesthe inkaa options kosam.",
-    askTimeB:    "1 press chesthe 3 PM. 2 press chesthe 4 PM. 3 press chesthe 5 PM. 4 press chesthe 6 PM. 5 press chesthe 7 PM. 6 press chesthe 8 PM. 7 press chesthe 9 PM. 8 press chesthe 10 PM.",
-    askGroup:    "Entha mandi? 1 press chesthe 1 to 2. 2 press chesthe 3 to 5. 3 press chesthe 6 to 10. 4 press chesthe 11 to 20. 5 press chesthe 20 kante ekkuva.",
-    askPayment:  "Payment method. 1 press chesthe Cash. 2 press chesthe Card. 3 press chesthe UPI.",
-    askConfirm:  (s) => `Booking confirm cheskoundi. ${s.game.name}. ${s.date}. ${s.time}. ${s.groupSize} mandi. ${s.payment} dwara payment. 1 press chesthe confirm. 2 press chesthe cancel.`,
-    askName:     "Beep taruvata mee peru cheppandi.",
-    askPhone:    "Beep taruvata mee 10 digit mobile number cheppandi.",
-    confirmed:   (s) => `Booking confirm ayyindi! ID ${s.bookingId}. ${s.game.name}, ${s.date}, ${s.time}. ${ARENA_NAME} lo kaladudam. Goodbye!`,
-    cancelled:   "Booking cancel chesaam. Dhanyavaadaalu. Goodbye.",
-    invalid:     "Tappu option. Malli try cheskoundi.",
-    notHeard:    "Response raaledhu. Malli try cheskoundi.",
-    repeat:      "9 press chesthe options malli vinandi.",
+    langCode: "te-IN", voice: "Polly.Aditi",
+    greeting:   null,
+    askGame:    "Game select cheskoundi. 1 press chesthe Pool Table. 2 press chesthe Cricket Pitch. 3 press chesthe Beach Volleyball. 4 press chesthe Table Tennis. 5 press chesthe Badminton.",
+    askDate:    (dates) => "Date select cheskoundi. " + dates.map((d,i) => `${i+1} press chesthe ${d.label}.`).join(" "),
+    askTimeMenu:(slots)  => "Available slots. " + slots.map((s,i) => `${i+1} press chesthe ${s}.`).join(" "),
+    noSlots:    "Maafi cheskoundi, aa date mariyu game ki slots levu. 1 press chesthe vera date. 2 press chesthe vera game.",
+    askGroup:   "Entha mandi? 1 press chesthe 1 to 2. 2 press chesthe 3 to 5. 3 press chesthe 6 to 10. 4 press chesthe 11 to 20. 5 press chesthe 20 kante ekkuva.",
+    askName:    "Beep taruvata mee peru cheppandi.",
+    askPhone:   "Mee 10 digit mobile number cheppandi leда type chesandi.",
+    askPayment: "Payment. 1 press chesthe Cash. 2 press chesthe Card. 3 press chesthe UPI.",
+    askConfirm: (s) => `Confirm cheskoundi: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.groupSize}, peru ${s.name}, payment ${s.payment}. 1 press chesthe confirm. 2 press chesthe restart.`,
+    confirmed:  (s) => `Booking confirm ayyindi! ID ${s.bookingId}. ${s.game.name}, ${s.date}, ${s.timeSlot}. ${ARENA_NAME} lo kaladudam! Goodbye.`,
+    restarted:  "Malli modalupetudaam. ",
+    invalid:    "Tappu option. Malli try cheskoundi. ",
+    notHeard:   "Artham kaaledu. Malli try cheskoundi. ",
+    goodbye:    `${ARENA_NAME} ki call chesinduku dhanyavaadaalu. Goodbye.`,
   }
-};
-
-const GROUP_LABELS = {
-  en: ["1 to 2 people", "3 to 5 people", "6 to 10 people", "11 to 20 people", "More than 20"],
-  hi: ["1 se 2 log",    "3 se 5 log",    "6 se 10 log",    "11 se 20 log",    "20 se zyada"],
-  te: ["1 to 2 mandi",  "3 to 5 mandi",  "6 to 10 mandi",  "11 to 20 mandi",  "20 kante ekkuva"],
 };
 
 // ─── Session Store ────────────────────────────────────────────────────────────
 
 const sessions = {};
 function getSession(sid) {
-  if (!sessions[sid]) sessions[sid] = { step: "lang_select", lang: "en" };
+  if (!sessions[sid]) sessions[sid] = { step:"lang_select", lang:"en" };
   return sessions[sid];
 }
 function clearSession(sid) { delete sessions[sid]; }
 
-// ─── DTMF Gather helper ───────────────────────────────────────────────────────
+// ─── TwiML Helpers ────────────────────────────────────────────────────────────
 
-function gather(twiml, lang, numDigits = 1) {
+function dtmfGather(twiml, lang, numDigits=1) {
   return twiml.gather({
-    input:     "dtmf",
-    action:    "/respond",
-    method:    "POST",
-    timeout:   15,
-    numDigits: numDigits,
-    language:  LANG[lang].langCode,
+    input:"dtmf speech", action:"/respond", method:"POST",
+    timeout:15, numDigits:numDigits, speechTimeout:3,
+    language: LANG[lang].langCode,
   });
 }
 
-// Speech gather — only for name & phone
 function speechGather(twiml, lang) {
   return twiml.gather({
-    input:         "speech",
-    action:        "/respond",
-    method:        "POST",
-    speechTimeout: 3,
-    timeout:       10,
-    language:      LANG[lang].langCode,
+    input:"speech dtmf", action:"/respond", method:"POST",
+    speechTimeout:4, timeout:12, numDigits:10,
+    language: LANG[lang].langCode,
   });
 }
 
-function respond(res, twiml) {
+function sendTwiml(res, twiml) {
   res.type("text/xml");
   res.send(twiml.toString());
 }
 
-// ─── Route: Incoming call ────────────────────────────────────────────────────
+// ─── Auth Middleware ──────────────────────────────────────────────────────────
 
-app.get("/", (req, res) => res.send(`${ARENA_NAME} — Aria DTMF Assistant running!`));
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    req.user = jwt.verify(auth.slice(7), JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
 
-app.post("/incoming", (req, res) => {
-  const callSid = req.body.CallSid;
-  sessions[callSid] = { step: "lang_select", lang: "en" };
+// ─── API Routes ───────────────────────────────────────────────────────────────
 
-  const twiml = new VoiceResponse();
-  const g = gather(twiml, "en");
-  g.say({ voice: "Polly.Aditi" }, LANG.en.greeting);
-  twiml.redirect("/incoming");
-  respond(res, twiml);
+app.get("/", (req, res) => res.send(`${ARENA_NAME} — Aria v5 running!`));
+
+// Login
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username !== ADMIN_USER || !bcrypt.compareSync(password, ADMIN_HASH)) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+  const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "12h" });
+  res.json({ token });
 });
 
-// ─── Route: Handle all responses ─────────────────────────────────────────────
+// Get all bookings
+app.get("/api/bookings", authMiddleware, (req, res) => {
+  res.json(bookings.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)));
+});
+
+// Cancel a booking
+app.patch("/api/bookings/:id/cancel", authMiddleware, (req, res) => {
+  const b = bookings.find(b => b.id === req.params.id);
+  if (!b) return res.status(404).json({ error: "Not found" });
+  b.status = "cancelled";
+  res.json(b);
+});
+
+// Availability grid
+app.get("/api/availability", authMiddleware, (req, res) => {
+  const dates = getAvailableDates();
+  const grid  = [];
+  for (const game of GAMES) {
+    for (const date of dates) {
+      for (const slot of TIME_SLOTS) {
+        const booked = getBookedCount(game.id, date.key, slot);
+        grid.push({
+          gameId:    game.id,
+          gameName:  game.name,
+          maxSlots:  game.maxSlots,
+          dateKey:   date.key,
+          dateLabel: date.label,
+          timeSlot:  slot,
+          booked,
+          available: game.maxSlots - booked,
+        });
+      }
+    }
+  }
+  res.json({ games: GAMES, dates, timeSlots: TIME_SLOTS, grid });
+});
+
+// Stats
+app.get("/api/stats", authMiddleware, (req, res) => {
+  const today = new Date().toISOString().split("T")[0];
+  res.json({
+    total:     bookings.length,
+    confirmed: bookings.filter(b => b.status === "confirmed").length,
+    cancelled: bookings.filter(b => b.status === "cancelled").length,
+    today:     bookings.filter(b => b.dateKey === today && b.status === "confirmed").length,
+    revenue:   bookings.filter(b => b.status === "confirmed").reduce((s,b) => s + (b.game?.rateNum || 0), 0),
+  });
+});
+
+// ─── Twilio IVR Routes ────────────────────────────────────────────────────────
+
+app.post("/incoming", (req, res) => {
+  const sid = req.body.CallSid;
+  sessions[sid] = { step:"lang_select", lang:"en" };
+  const twiml = new VoiceResponse();
+  const g = dtmfGather(twiml, "en");
+  g.say({ voice:"Polly.Aditi" }, LANG.en.greeting);
+  twiml.redirect("/incoming");
+  sendTwiml(res, twiml);
+});
 
 app.post("/respond", (req, res) => {
-  const callSid = req.body.CallSid;
-  const digits  = (req.body.Digits || "").trim();
-  const speech  = (req.body.SpeechResult || "").trim();
-  const session = getSession(callSid);
-  const twiml   = new VoiceResponse();
+  const sid    = req.body.CallSid;
+  const digits = (req.body.Digits || "").trim();
+  const speech = (req.body.SpeechResult || "").trim();
+  const s      = getSession(sid);
+  const twiml  = new VoiceResponse();
+  const lc     = LANG[s.lang];
+  const v      = lc.voice;
+  const input  = digits || speech;
 
-  const s   = session;
-  const lc  = LANG[s.lang];
-  const v   = lc.voice;
+  console.log(`[${sid}][${s.lang}][${s.step}] digits="${digits}" speech="${speech}"`);
 
-  console.log(`[${callSid}][${s.lang}][${s.step}] digits="${digits}" speech="${speech}"`);
-
-  // ── Helper: say + re-ask same step ──
-  function invalid() {
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.invalid + " " + currentPrompt());
-    respond(res, twiml);
+  function ask(prompt, useSpeech=false) {
+    const g = useSpeech ? speechGather(twiml, s.lang) : dtmfGather(twiml, s.lang);
+    g.say({ voice: v }, prompt);
+    twiml.say({ voice: v }, lc.notHeard + prompt);
+    sessions[sid] = s;
+    sendTwiml(res, twiml);
   }
 
-  function currentPrompt() {
-    const dates = getAvailableDates();
-    switch (s.step) {
-      case "lang_select": return LANG.en.greeting;
-      case "ask_game":    return lc.askGame;
-      case "ask_date":    return lc.askDate(dates);
-      case "ask_time_a":  return lc.askTimeA;
-      case "ask_time_b":  return lc.askTimeB;
-      case "ask_group":   return lc.askGroup;
-      case "ask_payment": return lc.askPayment;
-      case "ask_name":    return lc.askName;
-      case "ask_phone":   return lc.askPhone;
-      case "ask_confirm": return lc.askConfirm(s);
-      default: return "";
-    }
+  function invalid(prompt) {
+    const g = dtmfGather(twiml, s.lang);
+    g.say({ voice: v }, lc.invalid + prompt);
+    sessions[sid] = s;
+    sendTwiml(res, twiml);
   }
 
-  // ── Step machine ──
+  function restart() {
+    sessions[sid] = { step:"lang_select", lang: s.lang };
+    const g = dtmfGather(twiml, s.lang);
+    g.say({ voice: v }, lc.restarted + lc.askGame);
+    sessions[sid].step = "ask_game";
+    sendTwiml(res, twiml);
+  }
 
+  // ── Language Select ──
   if (s.step === "lang_select") {
-    if (digits === "1") { s.lang = "en"; }
-    else if (digits === "2") { s.lang = "hi"; }
-    else if (digits === "3") { s.lang = "te"; }
-    else return invalid();
-
-    s.step = "ask_game";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: LANG[s.lang].voice }, LANG[s.lang].askGame);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    const map = { "1":"en","2":"hi","3":"te" };
+    // speech detect
+    const t = speech.toLowerCase();
+    let chosen = map[digits];
+    if (!chosen) {
+      if (t.includes("english"))                           chosen = "en";
+      else if (t.includes("hindi") || t.includes("hind")) chosen = "hi";
+      else if (t.includes("telugu"))                       chosen = "te";
+    }
+    if (!chosen) return invalid(LANG.en.greeting);
+    s.lang = chosen; s.step = "ask_game";
+    return ask(LANG[chosen].askGame);
   }
 
+  // ── Game Select ──
   if (s.step === "ask_game") {
-    const idx = parseInt(digits) - 1;
-    if (isNaN(idx) || idx < 0 || idx > 4) return invalid();
+    const idx = parseInt(input) - 1;
+    if (isNaN(idx) || idx < 0 || idx > 4) return invalid(lc.askGame);
     s.game = GAMES[idx];
     s.step = "ask_date";
-    sessions[callSid] = s;
-    const dates = getAvailableDates();
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askDate(dates));
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    return ask(lc.askDate(getAvailableDates()));
   }
 
+  // ── Date Select ──
   if (s.step === "ask_date") {
     const dates = getAvailableDates();
-    const idx = parseInt(digits) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= dates.length) return invalid();
-    s.date = dates[idx];
-    s.step = "ask_time_a";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askTimeA);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
-  }
+    const idx   = parseInt(input) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= dates.length) return invalid(lc.askDate(dates));
+    s.selectedDate = dates[idx];
+    s.date    = dates[idx].label;
+    s.dateKey = dates[idx].key;
 
-  if (s.step === "ask_time_a") {
-    if (digits === "8") {
-      s.step = "ask_time_b";
-      sessions[callSid] = s;
-      const g = gather(twiml, s.lang);
-      g.say({ voice: v }, lc.askTimeB);
-      twiml.redirect("/respond");
-      return respond(res, twiml);
+    // Show only available slots
+    const avail = getAvailableSlotsForGame(s.game.id, s.dateKey);
+    if (avail.length === 0) {
+      s.step = "no_slots";
+      sessions[sid] = s;
+      const g = dtmfGather(twiml, s.lang);
+      g.say({ voice: v }, lc.noSlots);
+      return sendTwiml(res, twiml);
     }
-    const timeMap = { "1":"8 AM","2":"9 AM","3":"10 AM","4":"11 AM","5":"12 PM","6":"1 PM","7":"2 PM" };
-    if (!timeMap[digits]) return invalid();
-    s.time = timeMap[digits];
-    s.step = "ask_group";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askGroup);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    s.availableSlots = avail;
+    s.step = "ask_time";
+    return ask(lc.askTimeMenu(avail));
   }
 
-  if (s.step === "ask_time_b") {
-    const timeMap = { "1":"3 PM","2":"4 PM","3":"5 PM","4":"6 PM","5":"7 PM","6":"8 PM","7":"9 PM","8":"10 PM" };
-    if (!timeMap[digits]) return invalid();
-    s.time = timeMap[digits];
-    s.step = "ask_group";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askGroup);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+  // ── No Slots fallback ──
+  if (s.step === "no_slots") {
+    if (digits === "1") { s.step = "ask_date"; return ask(lc.askDate(getAvailableDates())); }
+    if (digits === "2") { s.step = "ask_game"; return ask(lc.askGame); }
+    return invalid(lc.noSlots);
   }
 
+  // ── Time Select (from available slots only) ──
+  if (s.step === "ask_time") {
+    const slots = s.availableSlots || TIME_SLOTS;
+    const idx   = parseInt(input) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= slots.length) return invalid(lc.askTimeMenu(slots));
+    s.timeSlot = slots[idx];
+    s.step     = "ask_group";
+    return ask(lc.askGroup);
+  }
+
+  // ── Group Size ──
   if (s.step === "ask_group") {
-    const groups = GROUP_LABELS[s.lang];
-    const idx = parseInt(digits) - 1;
-    if (isNaN(idx) || idx < 0 || idx > 4) return invalid();
-    s.groupSize = groups[idx];
+    const idx = parseInt(input) - 1;
+    if (isNaN(idx) || idx < 0 || idx > 4) return invalid(lc.askGroup);
+    s.groupSize = GROUP_SIZES[s.lang][idx];
     s.step = "ask_name";
-    sessions[callSid] = s;
-    // Name uses speech
-    const g = speechGather(twiml, s.lang);
-    g.say({ voice: v }, lc.askName);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    return ask(lc.askName, true);
   }
 
+  // ── Name (speech) ──
   if (s.step === "ask_name") {
-    const name = speech.trim().replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i, "").trim();
-    if (!name || name.length < 2) {
-      const g = speechGather(twiml, s.lang);
-      g.say({ voice: v }, lc.notHeard + " " + lc.askName);
-      return respond(res, twiml);
-    }
+    const name = speech.trim().replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i,"").trim();
+    if (!name || name.length < 2) return ask(lc.notHeard + lc.askName, true);
     s.name = name;
     s.step = "ask_phone";
-    sessions[callSid] = s;
-    const g = speechGather(twiml, s.lang);
-    g.say({ voice: v }, lc.askPhone);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    return ask(lc.askPhone, true);
   }
 
+  // ── Phone (speech or dtmf) ──
   if (s.step === "ask_phone") {
-    // Accept phone from speech OR digits
-    const raw = (speech + digits).replace(/[\s\-]/g, "");
+    const raw = (speech + digits).replace(/[\s\-]/g,"");
     const ph  = raw.match(/(\+?91)?([6-9]\d{9})/);
-    if (!ph) {
-      const g = speechGather(twiml, s.lang);
-      g.say({ voice: v }, lc.notHeard + " " + lc.askPhone);
-      return respond(res, twiml);
-    }
+    if (!ph) return ask(lc.notHeard + lc.askPhone, true);
     s.phone = ph[2];
     s.step  = "ask_payment";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askPayment);
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    return ask(lc.askPayment);
   }
 
+  // ── Payment ──
   if (s.step === "ask_payment") {
-    const payMap = { "1": "Cash", "2": "Card", "3": "UPI" };
-    if (!payMap[digits]) return invalid();
-    s.payment = payMap[digits];
+    const map = {"1":"Cash","2":"Card","3":"UPI"};
+    if (!map[input]) return invalid(lc.askPayment);
+    s.payment = map[input];
     s.step    = "ask_confirm";
-    sessions[callSid] = s;
-    const g = gather(twiml, s.lang);
-    g.say({ voice: v }, lc.askConfirm(s));
-    twiml.redirect("/respond");
-    return respond(res, twiml);
+    return ask(lc.askConfirm(s));
   }
 
+  // ── Confirm ──
   if (s.step === "ask_confirm") {
-    if (digits === "1") {
-      // Confirmed
-      s.bookingId = "NSL-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-      clearSession(callSid);
+    if (input === "1") {
+      // Save booking
+      const booking = {
+        id:        generateId(),
+        gameId:    s.game.id,
+        game:      { name: s.game.name, rate: s.game.rate, rateNum: s.game.rate ? parseInt(s.game.rate) : 0 },
+        date:      s.date,
+        dateKey:   s.dateKey,
+        timeSlot:  s.timeSlot,
+        groupSize: s.groupSize,
+        name:      s.name,
+        phone:     s.phone,
+        payment:   s.payment,
+        lang:      s.lang,
+        status:    "confirmed",
+        createdAt: new Date().toISOString(),
+      };
+      bookings.push(booking);
+      s.bookingId = booking.id;
+      clearSession(sid);
       twiml.say({ voice: v }, lc.confirmed(s));
       twiml.hangup();
-      return respond(res, twiml);
-    } else if (digits === "2") {
-      // Cancelled
-      clearSession(callSid);
-      twiml.say({ voice: v }, lc.cancelled);
-      twiml.hangup();
-      return respond(res, twiml);
-    } else {
-      return invalid();
+      return sendTwiml(res, twiml);
     }
+    if (input === "2") return restart();
+    return invalid(lc.askConfirm(s));
   }
 
   // Fallback
-  clearSession(callSid);
-  twiml.say({ voice: "Polly.Aditi" }, "Thank you for calling Nagole Sports Lounge. Goodbye.");
+  clearSession(sid);
+  twiml.say({ voice: v }, lc.goodbye);
   twiml.hangup();
-  respond(res, twiml);
+  sendTwiml(res, twiml);
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`${ARENA_NAME} — Aria DTMF on port ${PORT}`));
+app.listen(PORT, () => console.log(`${ARENA_NAME} — Aria on port ${PORT}`));

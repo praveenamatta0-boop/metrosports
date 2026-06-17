@@ -3,111 +3,149 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>NSL Admin Dashboard</title>
+<title>NSL Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Syne',sans-serif;background:#08080e;color:#f0f0f0;min-height:100vh}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#0a0a12}::-webkit-scrollbar-thumb{background:#222235;border-radius:2px}
 .hidden{display:none!important}
+/* Login */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh}
-.login-box{background:#101018;border:1px solid #1e1e2e;border-radius:20px;padding:44px 40px;width:340px}
-.login-box h1{font-size:22px;font-weight:800;text-align:center;margin-bottom:4px}
-.login-sub{font-size:11px;color:#444;font-family:'DM Mono',monospace;text-align:center;margin-bottom:28px}
-.logo{font-size:36px;text-align:center;margin-bottom:10px}
-input{width:100%;background:#0e0e1a;border:1px solid #1e1e2e;border-radius:10px;padding:12px 14px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:14px;margin-bottom:12px;outline:none;transition:border .15s}
-input:focus{border-color:#c8f03a50}
+.lbox{background:#101018;border:1px solid #1e1e2e;border-radius:20px;padding:44px 40px;width:340px;text-align:center}
+.lbox h1{font-size:21px;font-weight:800;margin-bottom:4px}
+.lsub{font-size:11px;color:#444;font-family:'DM Mono',monospace;margin-bottom:28px}
+.lbox input{width:100%;background:#0e0e1a;border:1px solid #1e1e2e;border-radius:10px;padding:12px 14px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:14px;margin-bottom:12px;outline:none;display:block}
+.lbox input:focus{border-color:#c8f03a50}
 .btn-primary{width:100%;background:#c8f03a;color:#08080e;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer}
 .btn-primary:hover{background:#b8e030}
-.err{color:#e05555;font-size:13px;margin-bottom:10px;text-align:center}
+.err{color:#e05555;font-size:13px;margin-bottom:10px}
+/* Header */
 header{padding:12px 28px;border-bottom:1px solid #12121e;display:flex;align-items:center;justify-content:space-between;background:#08080e;position:sticky;top:0;z-index:50}
 .brand{display:flex;align-items:center;gap:10px}
 .brand-icon{width:32px;height:32px;background:#c8f03a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
 .brand-name{font-weight:800;font-size:14px}
 .brand-sub{font-size:10px;color:#444;font-family:'DM Mono',monospace}
 nav{display:flex;gap:3px;background:#0e0e1a;border-radius:10px;padding:3px}
-.nav-btn{background:none;border:none;cursor:pointer;padding:8px 16px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;color:#555;transition:all .15s}
-.nav-btn.on{background:#c8f03a;color:#08080e}
-.nav-btn:hover:not(.on){color:#ddd;background:#13131f}
-.hdr-actions{display:flex;gap:8px}
-.btn-sm{background:#13131f;border:1px solid #1e1e2e;border-radius:8px;padding:7px 14px;color:#777;cursor:pointer;font-family:'Syne',sans-serif;font-size:12px}
-.btn-sm:hover{color:#ccc}
+.nb{background:none;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;color:#555;transition:all .15s}
+.nb.on{background:#c8f03a;color:#08080e}
+.nb:hover:not(.on){color:#ddd;background:#13131f}
+.hactions{display:flex;gap:8px}
+.bsm{background:#13131f;border:1px solid #1e1e2e;border-radius:8px;padding:7px 14px;color:#777;cursor:pointer;font-family:'Syne',sans-serif;font-size:12px}
+.bsm:hover{color:#ccc}
+/* Layout */
 main{max-width:1100px;margin:0 auto;padding:28px 20px}
-.tag{font-size:10px;color:#444;font-family:'DM Mono',monospace;font-weight:500;letter-spacing:.5px;margin-bottom:10px}
-.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
-.stat-card{background:#101018;border:1px solid #18182a;border-radius:14px;padding:20px}
-.stat-icon{font-size:20px;margin-bottom:6px}
-.stat-val{font-size:26px;font-weight:800;margin-bottom:3px}
-.stat-lbl{font-size:11px;color:#444;font-weight:600}
+.tag{font-size:10px;color:#444;font-family:'DM Mono',monospace;letter-spacing:.5px;margin-bottom:10px}
+/* Stats */
+.sgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
+.scard{background:#101018;border:1px solid #18182a;border-radius:14px;padding:20px}
+.sicon{font-size:20px;margin-bottom:6px}
+.sval{font-size:26px;font-weight:800;margin-bottom:3px}
+.slbl{font-size:11px;color:#444;font-weight:600}
+/* Games row */
 .games-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
-.game-chip{background:#101018;border:1px solid #18182a;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:9px}
-.chip-name{font-weight:700;font-size:12px}
-.chip-rate{font-size:10px;color:#c8f03a;font-family:'DM Mono',monospace}
+.gchip{background:#101018;border:1px solid #18182a;border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:9px}
+.cname{font-weight:700;font-size:12px}
+.crate{font-size:10px;color:#c8f03a;font-family:'DM Mono',monospace}
+/* Booking cards */
 .bcard{background:#101018;border:1px solid #18182a;border-radius:12px;padding:18px;cursor:pointer;transition:all .15s;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
 .bcard:hover{border-color:#c8f03a60;transform:translateY(-1px)}
-.bcard-left{display:flex;align-items:center;gap:12px}
-.bcard-icon{font-size:22px}
-.bcard-name{font-weight:700;font-size:14px}
-.bcard-phone{font-weight:400;color:#555;font-size:12px;margin-left:6px}
-.bcard-meta{font-size:11px;color:#555;margin-top:2px}
-.bcard-id{font-size:10px;color:#333;font-family:'DM Mono',monospace;margin-top:3px}
-.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:.5px}
-.pill-ok{background:#182a18;color:#5dd85d}
-.pill-no{background:#2a1818;color:#d85d5d}
+.bcl{display:flex;align-items:center;gap:12px}
+.bicon{font-size:22px}
+.bname{font-weight:700;font-size:14px}
+.bphone{font-weight:400;color:#555;font-size:12px;margin-left:6px}
+.bmeta{font-size:11px;color:#555;margin-top:2px}
+.bid{font-size:10px;color:#333;font-family:'DM Mono',monospace;margin-top:3px}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace}
+.pok{background:#182a18;color:#5dd85d}
+.pno{background:#2a1818;color:#d85d5d}
+/* Toolbar */
 .toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
-.search-inp{background:#0e0e1a;border:1px solid #18182a;border-radius:9px;padding:9px 13px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:13px;outline:none;width:220px}
-.search-inp:focus{border-color:#c8f03a50}
-.filter-row{display:flex;gap:7px}
+.sinp{background:#0e0e1a;border:1px solid #18182a;border-radius:9px;padding:9px 13px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:13px;outline:none;width:220px}
+.sinp:focus{border-color:#c8f03a50}
+.frow{display:flex;gap:7px}
 .fbtn{background:none;border:1px solid #18182a;cursor:pointer;padding:5px 13px;border-radius:20px;font-family:'Syne',sans-serif;font-size:12px;color:#666;transition:all .15s}
 .fbtn.on{border-color:#c8f03a;color:#c8f03a;background:#c8f03a10}
 .fbtn:hover:not(.on){border-color:#2a2a3a;color:#ccc}
+/* Empty */
 .empty{text-align:center;padding:60px 0;color:#333}
 .empty-icon{font-size:36px;margin-bottom:10px}
-.avail-legend{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
-.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-family:'DM Mono',monospace}
-.leg-dot{width:10px;height:10px;border-radius:3px}
-.sel-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+/* Availability */
+.aleg{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.aleg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-family:'DM Mono',monospace}
+.adot{width:10px;height:10px;border-radius:3px}
+.selrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .gbtn{cursor:pointer;border:1px solid #18182a;background:none;border-radius:8px;padding:7px 13px;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:#777;transition:all .15s}
 .gbtn.on{border-color:#c8f03a;color:#c8f03a;background:#c8f03a12}
 .gbtn:hover:not(.on){border-color:#2a2a3a;color:#ccc}
 .dbtn{cursor:pointer;border:1px solid #18182a;background:none;border-radius:8px;padding:6px 11px;font-family:'DM Mono',monospace;font-size:11px;color:#666;transition:all .15s}
 .dbtn.on{border-color:#c8f03a80;color:#c8f03a;background:#c8f03a10}
 .dbtn:hover:not(.on){border-color:#2a2a3a;color:#bbb}
-.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;margin-top:14px}
-.slot{border-radius:8px;padding:10px 12px;text-align:center;font-family:'DM Mono',monospace}
-.slot-time{font-weight:700;font-size:13px;margin-bottom:3px}
-.slot-count{font-size:10px;color:#444;margin-top:2px}
+.slotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;margin-top:14px}
+.slot{border-radius:8px;padding:10px 12px;text-align:center;font-family:'DM Mono',monospace;cursor:pointer}
 .slot-free{background:#0f2010;border:1px solid #1a3520}
 .slot-part{background:#201808;border:1px solid #352a10}
 .slot-full{background:#200808;border:1px solid #351010}
+.slot-blocked{background:#1a1a28;border:1px solid #2a2a40;opacity:.6}
+.slot-time{font-weight:700;font-size:13px;margin-bottom:3px}
+.slot-count{font-size:10px;color:#444;margin-top:2px}
+/* Settings */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.sbox{background:#101018;border:1px solid #18182a;border-radius:14px;padding:24px}
+.sbox h3{font-size:14px;font-weight:700;margin-bottom:16px;color:#c8f03a}
+.form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.form-row label{font-size:12px;color:#666;font-weight:600}
+.finp{background:#0e0e1a;border:1px solid #1e1e2e;border-radius:9px;padding:10px 13px;color:#f0f0f0;font-family:'Syne',sans-serif;font-size:13px;outline:none;width:100%}
+.finp:focus{border-color:#c8f03a50}
+.btn-save{background:#c8f03a;color:#08080e;border:none;border-radius:9px;padding:10px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer}
+.btn-save:hover{background:#b8e030}
+.btn-danger{background:#2a1010;border:1px solid #d85d5d30;color:#d85d5d;border-radius:9px;padding:8px 14px;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer}
+.btn-danger:hover{background:#3a1515}
+.btn-outline{background:none;border:1px solid #2a2a3a;color:#888;border-radius:9px;padding:8px 14px;font-family:'Syne',sans-serif;font-weight:600;font-size:12px;cursor:pointer}
+.btn-outline:hover{border-color:#444;color:#ccc}
+.game-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #14141e}
+.game-row:last-child{border-bottom:none}
+.game-info{flex:1}
+.game-title{font-weight:700;font-size:13px}
+.game-sub{font-size:11px;color:#666;font-family:'DM Mono',monospace;margin-top:2px}
+.toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:#888}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-on{background:#5dd85d}
+.dot-off{background:#555}
+.blocked-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;margin-bottom:12px}
+.blocked-item{display:flex;align-items:center;justify-content:space-between;background:#0e0e1a;border:1px solid #1e1e2e;border-radius:8px;padding:8px 12px;font-size:12px;font-family:'DM Mono',monospace}
+.toast{position:fixed;bottom:24px;right:24px;background:#c8f03a;color:#08080e;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;padding:12px 20px;border-radius:10px;z-index:999;transition:opacity .3s}
+/* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
-.modal{background:#101018;border:1px solid #25253a;border-radius:20px;padding:28px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
-.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.modal-title{font-weight:800;font-size:17px}
-.close-btn{background:none;border:none;color:#444;cursor:pointer;font-size:20px}
-.modal-center{text-align:center;margin-bottom:20px}
-.modal-big{font-size:42px}
-.modal-id{font-family:'DM Mono',monospace;font-size:12px;color:#c8f03a;margin-top:6px}
+.modal{background:#101018;border:1px solid #25253a;border-radius:20px;padding:28px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.mhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.mtitle{font-weight:800;font-size:17px}
+.xbtn{background:none;border:none;color:#444;cursor:pointer;font-size:20px}
+.mcenter{text-align:center;margin-bottom:20px}
+.mbig{font-size:42px}
+.mid{font-family:'DM Mono',monospace;font-size:12px;color:#c8f03a;margin-top:6px}
 .drow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #14141e}
 .dlbl{color:#444;font-size:13px}
 .dval{font-weight:600;font-size:13px}
-.btn-cancel{width:100%;margin-top:20px;background:#2a1010;border:1px solid #d85d5d30;color:#d85d5d;border-radius:10px;padding:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
+.btn-cancel-bk{width:100%;margin-top:20px;background:#2a1010;border:1px solid #d85d5d30;color:#d85d5d;border-radius:10px;padding:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
 .view-all{background:none;border:1px solid #18182a;border-radius:10px;padding:10px;color:#555;cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;width:100%;margin-top:4px}
 .view-all:hover{border-color:#2a2a3a;color:#ccc}
+.divider{height:1px;background:#14141e;margin:16px 0}
+@media(max-width:768px){.settings-grid{grid-template-columns:1fr}.sgrid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 
 <!-- LOGIN -->
 <div id="login-screen">
-  <div class="login-box">
-    <div class="logo">&#127967;</div>
+  <div class="lbox">
+    <div style="font-size:36px;margin-bottom:10px">&#127967;</div>
     <h1>Nagole Sports Lounge</h1>
-    <div class="login-sub">Admin Dashboard</div>
-    <div class="err hidden" id="login-err">Invalid username or password.</div>
-    <input id="u" placeholder="Username" autocomplete="username"/>
-    <input id="p" type="password" placeholder="Password" autocomplete="current-password"/>
-    <button class="btn-primary" id="login-btn">Sign In</button>
+    <div class="lsub">Admin Dashboard</div>
+    <div class="err hidden" id="lerr">Invalid username or password.</div>
+    <input id="lu" placeholder="Username" autocomplete="username"/>
+    <input id="lp" type="password" placeholder="Password" autocomplete="current-password"/>
+    <button class="btn-primary" id="lbtn">Sign In</button>
   </div>
 </div>
 
@@ -116,40 +154,32 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
   <header>
     <div class="brand">
       <div class="brand-icon">&#127967;</div>
-      <div>
-        <div class="brand-name">Nagole Sports Lounge</div>
-        <div class="brand-sub">Admin Dashboard</div>
-      </div>
+      <div><div class="brand-name">Nagole Sports Lounge</div><div class="brand-sub">Admin Dashboard</div></div>
     </div>
     <nav>
-      <button class="nav-btn on" id="nb-dashboard" onclick="showView('dashboard')">Dashboard</button>
-      <button class="nav-btn" id="nb-bookings"  onclick="showView('bookings')">Bookings</button>
-      <button class="nav-btn" id="nb-avail"     onclick="showView('availability')">Availability</button>
+      <button class="nb on" onclick="showV('dashboard')">Dashboard</button>
+      <button class="nb"    onclick="showV('bookings')">Bookings</button>
+      <button class="nb"    onclick="showV('availability')">Availability</button>
+      <button class="nb"    onclick="showV('settings')">Settings</button>
     </nav>
-    <div class="hdr-actions">
-      <button class="btn-sm" onclick="loadAll()">&#8635; Refresh</button>
-      <button class="btn-sm" onclick="doLogout()">Sign out</button>
+    <div class="hactions">
+      <button class="bsm" onclick="loadAll()">&#8635; Refresh</button>
+      <button class="bsm" onclick="doLogout()">Sign out</button>
     </div>
   </header>
 
   <!-- DASHBOARD -->
   <div id="view-dashboard">
     <main>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-icon">&#128222;</div><div class="stat-val" id="s-total" style="color:#c8f03a">-</div><div class="stat-lbl">Total Calls</div></div>
-        <div class="stat-card"><div class="stat-icon">&#9989;</div><div class="stat-val" id="s-conf" style="color:#5dd85d">-</div><div class="stat-lbl">Confirmed</div></div>
-        <div class="stat-card"><div class="stat-icon">&#128197;</div><div class="stat-val" id="s-today" style="color:#5db0de">-</div><div class="stat-lbl">Today</div></div>
-        <div class="stat-card"><div class="stat-icon">&#10060;</div><div class="stat-val" id="s-cancel" style="color:#d85d5d">-</div><div class="stat-lbl">Cancelled</div></div>
-        <div class="stat-card"><div class="stat-icon">&#128176;</div><div class="stat-val" id="s-rev" style="color:#e8c43a">-</div><div class="stat-lbl">Est. Revenue</div></div>
+      <div class="sgrid">
+        <div class="scard"><div class="sicon">&#128222;</div><div class="sval" id="s-total" style="color:#c8f03a">-</div><div class="slbl">Total Calls</div></div>
+        <div class="scard"><div class="sicon">&#9989;</div><div class="sval" id="s-conf" style="color:#5dd85d">-</div><div class="slbl">Confirmed</div></div>
+        <div class="scard"><div class="sicon">&#128197;</div><div class="sval" id="s-today" style="color:#5db0de">-</div><div class="slbl">Today</div></div>
+        <div class="scard"><div class="sicon">&#10060;</div><div class="sval" id="s-cancel" style="color:#d85d5d">-</div><div class="slbl">Cancelled</div></div>
+        <div class="scard"><div class="sicon">&#128176;</div><div class="sval" id="s-rev" style="color:#e8c43a">-</div><div class="slbl">Est. Revenue</div></div>
       </div>
       <div class="tag">GAMES &amp; PRICING</div>
-      <div class="games-row">
-        <div class="game-chip"><span>&#127921;</span><div><div class="chip-name">Pool Table</div><div class="chip-rate">&#8377;300/hr &middot; 4 courts</div></div></div>
-        <div class="game-chip"><span>&#127959;</span><div><div class="chip-name">Cricket Pitch</div><div class="chip-rate">&#8377;800/hr &middot; 2 pitches</div></div></div>
-        <div class="game-chip"><span>&#127952;</span><div><div class="chip-name">Beach Volleyball</div><div class="chip-rate">&#8377;500/hr &middot; 2 courts</div></div></div>
-        <div class="game-chip"><span>&#127955;</span><div><div class="chip-name">Table Tennis</div><div class="chip-rate">&#8377;250/hr &middot; 3 tables</div></div></div>
-        <div class="game-chip"><span>&#127992;</span><div><div class="chip-name">Badminton</div><div class="chip-rate">&#8377;400/hr &middot; 2 courts</div></div></div>
-      </div>
+      <div class="games-row" id="dash-games"></div>
       <div class="tag">RECENT BOOKINGS</div>
       <div id="recent-list"></div>
     </main>
@@ -161,8 +191,8 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
       <div class="toolbar">
         <div class="tag" style="margin:0" id="bcount">ALL BOOKINGS</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input class="search-inp" id="search" placeholder="Search name, phone, ID..." oninput="renderBookings()"/>
-          <div class="filter-row">
+          <input class="sinp" id="search" placeholder="Search name, phone, ID..." oninput="renderBookings()"/>
+          <div class="frow">
             <button class="fbtn on" onclick="setFilter('all',this)">All</button>
             <button class="fbtn"    onclick="setFilter('confirmed',this)">Confirmed</button>
             <button class="fbtn"    onclick="setFilter('cancelled',this)">Cancelled</button>
@@ -176,284 +206,432 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
   <!-- AVAILABILITY -->
   <div id="view-availability" class="hidden">
     <main>
-      <div class="tag">SLOT AVAILABILITY</div>
-      <div class="avail-legend">
-        <div class="leg-item"><div class="leg-dot" style="background:#5dd85d"></div>Available</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#e8c43a"></div>Partial</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#d85d5d"></div>Full</div>
+      <div class="tag">SLOT AVAILABILITY — click any slot to block/unblock it</div>
+      <div class="aleg">
+        <div class="aleg-item"><div class="adot" style="background:#5dd85d"></div>Available</div>
+        <div class="aleg-item"><div class="adot" style="background:#e8c43a"></div>Partial</div>
+        <div class="aleg-item"><div class="adot" style="background:#d85d5d"></div>Full</div>
+        <div class="aleg-item"><div class="adot" style="background:#444"></div>Blocked</div>
       </div>
-      <div class="sel-row" id="game-sel"></div>
-      <div class="sel-row" id="date-sel"></div>
+      <div class="selrow" id="game-sel"></div>
+      <div class="selrow" id="date-sel"></div>
       <div id="slot-area"></div>
+    </main>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="view-settings" class="hidden">
+    <main>
+      <div class="settings-grid">
+
+        <!-- Arena info -->
+        <div class="sbox">
+          <h3>&#127967; Arena Settings</h3>
+          <div class="form-row">
+            <label>Arena Name</label>
+            <input class="finp" id="set-name" placeholder="Arena name"/>
+          </div>
+          <div class="form-row">
+            <label>Opening Hour (24h, e.g. 8 = 8 AM)</label>
+            <input class="finp" id="set-open" type="number" min="0" max="23"/>
+          </div>
+          <div class="form-row">
+            <label>Closing Hour (24h, e.g. 23 = 11 PM)</label>
+            <input class="finp" id="set-close" type="number" min="1" max="24"/>
+          </div>
+          <button class="btn-save" onclick="saveArena()">Save Arena Settings</button>
+        </div>
+
+        <!-- Add / Edit game -->
+        <div class="sbox">
+          <h3>&#127918; Add / Edit Game</h3>
+          <div class="form-row">
+            <label>Game ID (short, no spaces e.g. pool, cricket)</label>
+            <input class="finp" id="g-id" placeholder="e.g. bowling"/>
+          </div>
+          <div class="form-row">
+            <label>Game Name</label>
+            <input class="finp" id="g-name" placeholder="e.g. Bowling Alley"/>
+          </div>
+          <div class="form-row">
+            <label>Rate (&#8377; per hour)</label>
+            <input class="finp" id="g-rate" type="number" placeholder="e.g. 500"/>
+          </div>
+          <div class="form-row">
+            <label>Number of Courts / Tables</label>
+            <input class="finp" id="g-courts" type="number" placeholder="e.g. 2"/>
+          </div>
+          <button class="btn-save" onclick="saveGame()">Save Game</button>
+        </div>
+
+        <!-- Games list -->
+        <div class="sbox" style="grid-column:1/-1">
+          <h3>&#127918; Manage Games</h3>
+          <div id="games-list"></div>
+        </div>
+
+        <!-- Block dates -->
+        <div class="sbox">
+          <h3>&#128683; Block Dates (no bookings)</h3>
+          <div class="form-row">
+            <label>Select Date to Block</label>
+            <input class="finp" id="block-date-inp" type="date"/>
+          </div>
+          <button class="btn-save" onclick="blockDate()" style="margin-bottom:16px">Block This Date</button>
+          <div class="divider"></div>
+          <div class="tag" style="margin-top:12px">CURRENTLY BLOCKED DATES</div>
+          <div class="blocked-list" id="blocked-dates-list"></div>
+        </div>
+
+        <!-- Block slots -->
+        <div class="sbox">
+          <h3>&#128683; Block Specific Slots</h3>
+          <div class="form-row">
+            <label>Game</label>
+            <select class="finp" id="bs-game"></select>
+          </div>
+          <div class="form-row">
+            <label>Date</label>
+            <input class="finp" id="bs-date" type="date"/>
+          </div>
+          <div class="form-row">
+            <label>Time Slot</label>
+            <select class="finp" id="bs-slot"></select>
+          </div>
+          <button class="btn-save" onclick="blockSlot()" style="margin-bottom:16px">Block This Slot</button>
+          <div class="divider"></div>
+          <div class="tag" style="margin-top:12px">CURRENTLY BLOCKED SLOTS</div>
+          <div class="blocked-list" id="blocked-slots-list"></div>
+        </div>
+
+      </div>
     </main>
   </div>
 </div>
 
 <!-- MODAL -->
-<div class="overlay hidden" id="modal-overlay">
+<div class="overlay hidden" id="modal-ov">
   <div class="modal">
-    <div class="modal-hdr">
-      <div class="modal-title">Booking Details</div>
-      <button class="close-btn" id="close-modal">&#10005;</button>
-    </div>
-    <div class="modal-center">
-      <div class="modal-big" id="m-icon"></div>
-      <div class="modal-id"  id="m-id"></div>
+    <div class="mhdr"><div class="mtitle">Booking Details</div><button class="xbtn" id="xbtn">&#10005;</button></div>
+    <div class="mcenter">
+      <div class="mbig" id="m-icon"></div>
+      <div class="mid" id="m-id"></div>
       <div style="margin-top:8px" id="m-pill"></div>
     </div>
     <div id="m-body"></div>
-    <button class="btn-cancel hidden" id="m-cancel">Cancel Booking</button>
+    <button class="btn-cancel-bk hidden" id="m-cancel">Cancel Booking</button>
   </div>
 </div>
 
+<!-- TOAST -->
+<div class="toast hidden" id="toast"></div>
+
 <script>
 var ICONS = {pool:"&#127921;",cricket:"&#127959;",volleyball:"&#127952;",table_tennis:"&#127955;",badminton:"&#127992;"};
-var token = localStorage.getItem("nsl_token") || "";
-var allBookings = [], availData = null, curFilter = "all";
-var selGame = "pool", selDate = 0, selectedId = null;
+var token = localStorage.getItem("nsl_token")||"";
+var allBookings=[], availData=null, settingsData=null, curFilter="all";
+var selGame="pool", selDate=0, selId=null;
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-function doLogin() {
-  var u = document.getElementById("u").value;
-  var p = document.getElementById("p").value;
-  var err = document.getElementById("login-err");
-  err.classList.add("hidden");
-  fetch("/api/login", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({username:u, password:p})
-  })
-  .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-  .then(function(d){
-    token = d.token;
-    localStorage.setItem("nsl_token", token);
-    document.getElementById("login-screen").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    loadAll();
-  })
-  .catch(function(){ err.classList.remove("hidden"); });
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.remove("hidden");setTimeout(function(){t.classList.add("hidden");},2500);}
+
+// Auth
+function doLogin(){
+  var u=document.getElementById("lu").value, p=document.getElementById("lp").value;
+  document.getElementById("lerr").classList.add("hidden");
+  fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})})
+  .then(function(r){if(!r.ok)throw new Error();return r.json();})
+  .then(function(d){token=d.token;localStorage.setItem("nsl_token",token);document.getElementById("login-screen").classList.add("hidden");document.getElementById("app").classList.remove("hidden");loadAll();})
+  .catch(function(){document.getElementById("lerr").classList.remove("hidden");});
+}
+document.getElementById("lbtn").onclick=doLogin;
+document.getElementById("lp").onkeydown=function(e){if(e.key==="Enter")doLogin();};
+function doLogout(){localStorage.removeItem("nsl_token");token="";location.reload();}
+
+function api(path,opts){
+  opts=opts||{};opts.headers=opts.headers||{};
+  opts.headers["Authorization"]="Bearer "+token;opts.headers["Content-Type"]="application/json";
+  return fetch(path,opts).then(function(r){if(r.status===401){doLogout();return null;}return r.json();});
 }
 
-document.getElementById("login-btn").addEventListener("click", doLogin);
-document.getElementById("p").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
-
-function doLogout() {
-  localStorage.removeItem("nsl_token");
-  token = "";
-  location.reload();
-}
-
-function api(path, opts) {
-  opts = opts || {};
-  opts.headers = opts.headers || {};
-  opts.headers["Authorization"] = "Bearer " + token;
-  opts.headers["Content-Type"] = "application/json";
-  return fetch(path, opts).then(function(r){
-    if(r.status===401){ doLogout(); return null; }
-    return r.json();
+// Load all
+function loadAll(){
+  Promise.all([api("/api/bookings"),api("/api/stats"),api("/api/availability"),api("/api/settings")])
+  .then(function(r){
+    if(r[0])allBookings=r[0];
+    if(r[1])renderStats(r[1]);
+    if(r[2]){availData=r[2];renderAvail();}
+    if(r[3]){settingsData=r[3];renderSettings();}
+    renderBookings();renderRecent();renderDashGames();
   });
 }
 
-// ── Load ──────────────────────────────────────────────────────────────────────
-function loadAll() {
-  Promise.all([
-    api("/api/bookings"),
-    api("/api/stats"),
-    api("/api/availability")
-  ]).then(function(results){
-    if(results[0]) allBookings = results[0];
-    if(results[1]) renderStats(results[1]);
-    if(results[2]){ availData = results[2]; renderAvail(); }
-    renderBookings();
-    renderRecent();
+// Views
+function showV(v){
+  ["dashboard","bookings","availability","settings"].forEach(function(id){
+    document.getElementById("view-"+id).classList.toggle("hidden",id!==v);
+  });
+  document.querySelectorAll(".nb").forEach(function(b,i){
+    b.classList.toggle("on",["dashboard","bookings","availability","settings"][i]===v);
   });
 }
 
-// ── Views ─────────────────────────────────────────────────────────────────────
-function showView(v) {
-  ["dashboard","bookings","availability"].forEach(function(id){
-    document.getElementById("view-"+id).classList.toggle("hidden", id!==v);
-    document.getElementById("nb-"+id).classList.toggle("on", id===v);
+// Stats
+function renderStats(s){
+  document.getElementById("s-total").textContent=s.total;
+  document.getElementById("s-conf").textContent=s.confirmed;
+  document.getElementById("s-today").textContent=s.today;
+  document.getElementById("s-cancel").textContent=s.cancelled;
+  document.getElementById("s-rev").textContent=s.revenue?"\u20B9"+s.revenue:"-";
+}
+
+// Dashboard games
+function renderDashGames(){
+  if(!settingsData)return;
+  var el=document.getElementById("dash-games");
+  el.innerHTML="";
+  settingsData.games.forEach(function(g){
+    var div=document.createElement("div");
+    div.className="gchip";
+    div.innerHTML='<span>'+(ICONS[g.id]||"&#127918;")+'</span><div><div class="cname">'+esc(g.name)+'</div><div class="crate">\u20B9'+g.rate+'/hr &middot; '+g.courts+' courts'+(g.active?"":" &middot; <span style=\"color:#d85d5d\">Inactive</span>")+'</div></div>';
+    el.appendChild(div);
   });
-  document.getElementById("nb-avail").classList.toggle("on", v==="availability");
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-function renderStats(s) {
-  document.getElementById("s-total").textContent  = s.total;
-  document.getElementById("s-conf").textContent   = s.confirmed;
-  document.getElementById("s-today").textContent  = s.today;
-  document.getElementById("s-cancel").textContent = s.cancelled;
-  document.getElementById("s-rev").textContent    = s.revenue ? "\u20B9"+s.revenue : "-";
-}
-
-// ── Booking card ──────────────────────────────────────────────────────────────
-function makeCard(b, onclick) {
-  var icon = ICONS[b.gameId] || "&#127918;";
-  var pill = b.status==="confirmed"
-    ? '<span class="pill pill-ok">CONFIRMED</span>'
-    : '<span class="pill pill-no">CANCELLED</span>';
-  var div = document.createElement("div");
-  div.className = "bcard";
-  div.onclick = onclick;
-  div.innerHTML =
-    '<div class="bcard-left">' +
-      '<span class="bcard-icon">' + icon + '</span>' +
-      '<div>' +
-        '<div><span class="bcard-name">' + esc(b.name) + '</span><span class="bcard-phone">&middot; ' + esc(b.phone) + '</span></div>' +
-        '<div class="bcard-meta">' + esc(b.gameName) + ' &middot; ' + esc(b.date) + ' &middot; ' + esc(b.timeSlot) + ' &middot; ' + esc(b.group) + ' &middot; ' + esc(b.pay) + '</div>' +
-        '<div class="bcard-id">#' + esc(b.id) + ' &middot; ' + new Date(b.createdAt).toLocaleString("en-IN") + ' &middot; ' + (b.lang||"en").toUpperCase() + '</div>' +
-      '</div>' +
-    '</div>' + pill;
+// Booking card
+function makeCard(b,onclick){
+  var icon=ICONS[b.gameId]||"&#127918;";
+  var pill=b.status==="confirmed"?'<span class="pill pok">CONFIRMED</span>':'<span class="pill pno">CANCELLED</span>';
+  var div=document.createElement("div");div.className="bcard";div.onclick=onclick;
+  div.innerHTML='<div class="bcl"><span class="bicon">'+icon+'</span><div><div><span class="bname">'+esc(b.name)+'</span><span class="bphone">&middot; '+esc(b.phone)+'</span></div><div class="bmeta">'+esc(b.gameName)+' &middot; '+esc(b.date)+' &middot; '+esc(b.timeSlot)+' &middot; '+esc(b.group)+' &middot; '+esc(b.pay)+'</div><div class="bid">#'+esc(b.id)+' &middot; '+new Date(b.createdAt).toLocaleString("en-IN")+' &middot; '+(b.lang||"en").toUpperCase()+'</div></div></div>'+pill;
   return div;
 }
 
-function esc(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// Recent
+function renderRecent(){
+  var el=document.getElementById("recent-list");el.innerHTML="";
+  var list=allBookings.slice(0,5);
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings yet</div></div>';return;}
+  list.forEach(function(b){el.appendChild(makeCard(b,function(){openModal(b.id);}));});
+  if(allBookings.length>5){var btn=document.createElement("button");btn.className="view-all";btn.textContent="View all "+allBookings.length+" bookings \u2192";btn.onclick=function(){showV("bookings");};el.appendChild(btn);}
 }
 
-// ── Recent ────────────────────────────────────────────────────────────────────
-function renderRecent() {
-  var el = document.getElementById("recent-list");
-  el.innerHTML = "";
-  var list = allBookings.slice(0,5);
-  if(!list.length) { el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings yet</div></div>'; return; }
-  list.forEach(function(b){
-    el.appendChild(makeCard(b, function(){ openModal(b.id); }));
-  });
-  if(allBookings.length>5) {
-    var btn = document.createElement("button");
-    btn.className = "view-all";
-    btn.textContent = "View all " + allBookings.length + " bookings \u2192";
-    btn.onclick = function(){ showView("bookings"); };
-    el.appendChild(btn);
-  }
-}
-
-// ── Bookings ──────────────────────────────────────────────────────────────────
-function setFilter(f, btn) {
-  curFilter = f;
-  document.querySelectorAll(".fbtn").forEach(function(b){ b.classList.remove("on"); });
-  btn.classList.add("on");
-  renderBookings();
-}
-
-function renderBookings() {
-  var search = (document.getElementById("search") ? document.getElementById("search").value : "").toLowerCase();
-  var list = allBookings.filter(function(b){
-    if(curFilter!=="all" && b.status!==curFilter) return false;
-    if(search && !((b.name||"")+" "+(b.phone||"")+" "+(b.id||"")+" "+(b.gameName||"")).toLowerCase().includes(search)) return false;
+// Bookings
+function setFilter(f,btn){curFilter=f;document.querySelectorAll(".fbtn").forEach(function(b){b.classList.remove("on");});btn.classList.add("on");renderBookings();}
+function renderBookings(){
+  var search=(document.getElementById("search")?document.getElementById("search").value:"").toLowerCase();
+  var list=allBookings.filter(function(b){
+    if(curFilter!=="all"&&b.status!==curFilter)return false;
+    if(search&&!((b.name||"")+" "+(b.phone||"")+" "+(b.id||"")+" "+(b.gameName||"")).toLowerCase().includes(search))return false;
     return true;
   });
-  var cnt = document.getElementById("bcount");
-  if(cnt) cnt.textContent = "ALL BOOKINGS (" + list.length + ")";
-  var el = document.getElementById("bookings-list");
-  if(!el) return;
-  el.innerHTML = "";
-  if(!list.length) { el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings found</div></div>'; return; }
-  list.forEach(function(b){
-    el.appendChild(makeCard(b, function(){ openModal(b.id); }));
-  });
+  var cnt=document.getElementById("bcount");if(cnt)cnt.textContent="ALL BOOKINGS ("+list.length+")";
+  var el=document.getElementById("bookings-list");if(!el)return;el.innerHTML="";
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">&#128219;</div><div>No bookings found</div></div>';return;}
+  list.forEach(function(b){el.appendChild(makeCard(b,function(){openModal(b.id);}));});
 }
 
-// ── Availability ──────────────────────────────────────────────────────────────
-function renderAvail() {
-  if(!availData) return;
-  var games = availData.games;
-  var dates = availData.dates;
-  var grid  = availData.grid;
+// Availability
+function renderAvail(){
+  if(!availData)return;
+  var games=availData.games,dates=availData.dates,grid=availData.grid;
 
-  var gsel = document.getElementById("game-sel");
-  gsel.innerHTML = "";
+  // Game selector
+  var gsel=document.getElementById("game-sel");gsel.innerHTML="";
   games.forEach(function(g){
-    var btn = document.createElement("button");
-    btn.className = "gbtn" + (selGame===g.id?" on":"");
-    btn.innerHTML = (ICONS[g.id]||"") + " " + g.name;
-    btn.onclick = function(){ selGame=g.id; renderAvail(); };
+    var btn=document.createElement("button");btn.className="gbtn"+(selGame===g.id?" on":"");
+    btn.innerHTML=(ICONS[g.id]||"")+" "+esc(g.name);
+    btn.onclick=function(){selGame=g.id;renderAvail();};
     gsel.appendChild(btn);
   });
 
-  var dsel = document.getElementById("date-sel");
-  dsel.innerHTML = "";
+  // Date selector
+  var dsel=document.getElementById("date-sel");dsel.innerHTML="";
   dates.forEach(function(d,i){
-    var btn = document.createElement("button");
-    btn.className = "dbtn" + (selDate===i?" on":"");
-    btn.textContent = d.label;
-    btn.onclick = function(){ selDate=i; renderAvail(); };
+    var btn=document.createElement("button");btn.className="dbtn"+(selDate===i?" on":"");
+    btn.textContent=d.label;btn.onclick=function(){selDate=i;renderAvail();};
     dsel.appendChild(btn);
   });
 
-  var curDate = dates[selDate];
-  var filtered = grid.filter(function(r){ return r.gameId===selGame && r.dateKey===curDate.key; });
-  var gObj = games.find(function(g){ return g.id===selGame; });
+  var curDate=dates[selDate];
+  var filtered=grid.filter(function(r){return r.gameId===selGame&&r.dateKey===curDate.key;});
+  var gObj=games.find(function(g){return g.id===selGame;});
 
-  var area = document.getElementById("slot-area");
-  area.innerHTML = '<div style="font-weight:700;font-size:13px;color:#c8f03a;margin-bottom:12px">' +
-    (ICONS[selGame]||"") + " " + (gObj?gObj.name:"") + " &middot; " + curDate.label + '</div>';
-
-  var sgrid = document.createElement("div");
-  sgrid.className = "slot-grid";
+  var area=document.getElementById("slot-area");
+  area.innerHTML='<div style="font-weight:700;font-size:13px;color:#c8f03a;margin-bottom:12px">'+(ICONS[selGame]||"")+" "+(gObj?esc(gObj.name):"")+" &middot; "+curDate.label+'</div>';
+  var sg=document.createElement("div");sg.className="slotgrid";
   filtered.forEach(function(s){
-    var pct = s.booked/s.gameMax;
-    var cls = pct===0?"slot-free":pct<1?"slot-part":"slot-full";
-    var col = pct===0?"#5dd85d":pct<1?"#e8c43a":"#d85d5d";
-    var div = document.createElement("div");
-    div.className = "slot " + cls;
-    div.innerHTML =
-      '<div class="slot-time" style="color:'+col+'">'+s.timeSlot+'</div>' +
-      '<div style="color:'+col+';font-size:11px">'+(s.available>0?s.available+' free':'Full')+'</div>' +
-      '<div class="slot-count">'+s.booked+'/'+s.gameMax+'</div>';
-    sgrid.appendChild(div);
+    var div=document.createElement("div");
+    if(s.blocked){
+      div.className="slot slot-blocked";
+      div.innerHTML='<div class="slot-time" style="color:#555">'+s.timeSlot+'</div><div style="color:#555;font-size:11px">Blocked</div>';
+      div.title="Click to unblock";
+      div.onclick=function(){unblockSlot(selGame,curDate.key,s.timeSlot);};
+    } else {
+      var pct=s.booked/s.gameMax;
+      var cls=pct===0?"slot-free":pct<1?"slot-part":"slot-full";
+      var col=pct===0?"#5dd85d":pct<1?"#e8c43a":"#d85d5d";
+      div.className="slot "+cls;
+      div.innerHTML='<div class="slot-time" style="color:'+col+'">'+s.timeSlot+'</div><div style="color:'+col+';font-size:11px">'+(s.available>0?s.available+" free":"Full")+'</div><div class="slot-count">'+s.booked+"/"+s.gameMax+'</div>';
+      div.title="Click to block this slot";
+      div.onclick=function(){doBlockSlot(selGame,curDate.key,s.timeSlot);};
+    }
+    sg.appendChild(div);
   });
-  area.appendChild(sgrid);
+  area.appendChild(sg);
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
-function openModal(id) {
-  var b = allBookings.find(function(x){ return x.id===id; });
-  if(!b) return;
-  selectedId = id;
-  document.getElementById("m-icon").innerHTML = ICONS[b.gameId]||"&#127918;";
-  document.getElementById("m-id").textContent  = "#"+b.id;
-  document.getElementById("m-pill").innerHTML   = b.status==="confirmed"
-    ? '<span class="pill pill-ok">CONFIRMED</span>'
-    : '<span class="pill pill-no">CANCELLED</span>';
-  var rows = [
-    ["Guest",b.name],["Phone",b.phone],["Game",b.gameName],
-    ["Date",b.date],["Time",b.timeSlot],["Group",b.group],
-    ["Payment",b.pay],["Language",(b.lang||"en").toUpperCase()],
-    ["Booked at",new Date(b.createdAt).toLocaleString("en-IN")]
-  ];
-  document.getElementById("m-body").innerHTML = rows.map(function(r){
-    return '<div class="drow"><span class="dlbl">'+esc(r[0])+'</span><span class="dval">'+esc(r[1])+'</span></div>';
-  }).join("");
-  var cb = document.getElementById("m-cancel");
-  if(b.status==="confirmed") cb.classList.remove("hidden"); else cb.classList.add("hidden");
-  document.getElementById("modal-overlay").classList.remove("hidden");
+function doBlockSlot(gameId,dateKey,timeSlot){
+  if(!confirm("Block slot: "+timeSlot+" on "+dateKey+" for "+gameId+"?"))return;
+  api("/api/settings/block-slot",{method:"POST",body:JSON.stringify({gameId,dateKey,timeSlot})})
+  .then(function(){toast("Slot blocked!");loadAll();});
+}
+function unblockSlot(gameId,dateKey,timeSlot){
+  api("/api/settings/block-slot",{method:"DELETE",body:JSON.stringify({gameId,dateKey,timeSlot})})
+  .then(function(){toast("Slot unblocked!");loadAll();});
 }
 
-document.getElementById("close-modal").onclick = closeModal;
-document.getElementById("modal-overlay").onclick = function(e){ if(e.target===this) closeModal(); };
+// Settings page
+function renderSettings(){
+  if(!settingsData)return;
+  // Arena fields
+  document.getElementById("set-name").value=settingsData.arenaName||"";
+  document.getElementById("set-open").value=settingsData.openHour||8;
+  document.getElementById("set-close").value=settingsData.closeHour||23;
 
-function closeModal() {
-  document.getElementById("modal-overlay").classList.add("hidden");
-  selectedId = null;
+  // Games list
+  var gl=document.getElementById("games-list");gl.innerHTML="";
+  settingsData.games.forEach(function(g){
+    var row=document.createElement("div");row.className="game-row";
+    row.innerHTML='<div class="game-info"><div class="game-title">'+(ICONS[g.id]||"")+" "+esc(g.name)+'</div><div class="game-sub">\u20B9'+g.rate+'/hr &middot; '+g.courts+' courts &middot; ID: '+esc(g.id)+'</div></div>'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+      '<div class="toggle"><span class="status-dot '+(g.active?"dot-on":"dot-off")+'"></span>'+( g.active?"Active":"Inactive")+'</div>'+
+      '<button class="btn-outline" onclick="editGame(\''+g.id+'\')">Edit</button>'+
+      '<button class="btn-outline" onclick="toggleGame(\''+g.id+'\','+(g.active?"false":"true")+')">'+( g.active?"Disable":"Enable")+'</button>'+
+      '<button class="btn-danger" onclick="deleteGame(\''+g.id+'\')">Delete</button>'+
+      '</div>';
+    gl.appendChild(row);
+  });
+
+  // Block date: populate game selector
+  var bgsel=document.getElementById("bs-game");bgsel.innerHTML="";
+  settingsData.games.forEach(function(g){
+    var opt=document.createElement("option");opt.value=g.id;opt.textContent=g.name;bgsel.appendChild(opt);
+  });
+
+  // Block slot: populate time slots
+  var bssl=document.getElementById("bs-slot");bssl.innerHTML="";
+  var slots=genSlots(settingsData.openHour||8,settingsData.closeHour||23);
+  slots.forEach(function(s){var opt=document.createElement("option");opt.value=s;opt.textContent=s;bssl.appendChild(opt);});
+
+  // Blocked dates list
+  var bdl=document.getElementById("blocked-dates-list");bdl.innerHTML="";
+  if(!settingsData.blockedDates||!settingsData.blockedDates.length){bdl.innerHTML='<div style="color:#444;font-size:12px;font-family:\'DM Mono\',monospace">None</div>';}
+  else{settingsData.blockedDates.forEach(function(d){var div=document.createElement("div");div.className="blocked-item";div.innerHTML=d+'<button class="btn-danger" style="padding:4px 10px" onclick="unblockDate(\''+d+'\')">Remove</button>';bdl.appendChild(div);});}
+
+  // Blocked slots list
+  var bsl=document.getElementById("blocked-slots-list");bsl.innerHTML="";
+  if(!settingsData.blockedSlots||!settingsData.blockedSlots.length){bsl.innerHTML='<div style="color:#444;font-size:12px;font-family:\'DM Mono\',monospace">None</div>';}
+  else{settingsData.blockedSlots.forEach(function(s){var div=document.createElement("div");div.className="blocked-item";div.innerHTML=esc(s.gameId)+" &middot; "+esc(s.dateKey)+" &middot; "+esc(s.timeSlot)+'<button class="btn-danger" style="padding:4px 10px" onclick="unblockSlotSettings(\''+s.gameId+'\',\''+s.dateKey+'\',\''+s.timeSlot+'\')">Remove</button>';bsl.appendChild(div);});}
 }
 
-document.getElementById("m-cancel").onclick = function() {
-  if(!selectedId) return;
-  api("/api/bookings/"+selectedId+"/cancel", {method:"PATCH"})
-    .then(function(){ closeModal(); loadAll(); });
+function genSlots(open,close){
+  var slots=[];
+  for(var h=open;h<close;h++){slots.push(h<12?h+" AM":h===12?"12 PM":(h-12)+" PM");}
+  return slots;
+}
+
+function saveArena(){
+  var name=document.getElementById("set-name").value;
+  var open=document.getElementById("set-open").value;
+  var close=document.getElementById("set-close").value;
+  api("/api/settings",{method:"PUT",body:JSON.stringify({arenaName:name,openHour:parseInt(open),closeHour:parseInt(close)})})
+  .then(function(){toast("Arena settings saved!");loadAll();});
+}
+
+function saveGame(){
+  var id=document.getElementById("g-id").value.trim().replace(/\s+/g,"_").toLowerCase();
+  var name=document.getElementById("g-name").value.trim();
+  var rate=document.getElementById("g-rate").value;
+  var courts=document.getElementById("g-courts").value;
+  if(!id||!name){alert("Game ID and Name are required.");return;}
+  api("/api/settings/games",{method:"POST",body:JSON.stringify({id,name,rate,courts,active:true})})
+  .then(function(){toast("Game saved!");document.getElementById("g-id").value="";document.getElementById("g-name").value="";document.getElementById("g-rate").value="";document.getElementById("g-courts").value="";loadAll();});
+}
+
+function editGame(id){
+  if(!settingsData)return;
+  var g=settingsData.games.find(function(x){return x.id===id;});
+  if(!g)return;
+  document.getElementById("g-id").value=g.id;
+  document.getElementById("g-name").value=g.name;
+  document.getElementById("g-rate").value=g.rate;
+  document.getElementById("g-courts").value=g.courts;
+  document.getElementById("g-id").focus();
+  toast("Editing "+g.name+" — change fields and click Save Game");
+}
+
+function toggleGame(id,active){
+  if(!settingsData)return;
+  var g=settingsData.games.find(function(x){return x.id===id;});
+  if(!g)return;
+  api("/api/settings/games",{method:"POST",body:JSON.stringify({id:g.id,name:g.name,rate:g.rate,courts:g.courts,active:active==="true"||active===true})})
+  .then(function(){toast("Game updated!");loadAll();});
+}
+
+function deleteGame(id){
+  if(!confirm("Delete game "+id+"? This cannot be undone."))return;
+  api("/api/settings/games/"+id,{method:"DELETE"}).then(function(){toast("Game deleted!");loadAll();});
+}
+
+function blockDate(){
+  var d=document.getElementById("block-date-inp").value;
+  if(!d){alert("Please select a date.");return;}
+  api("/api/settings/block-date",{method:"POST",body:JSON.stringify({dateKey:d})})
+  .then(function(){toast("Date blocked: "+d);loadAll();});
+}
+
+function unblockDate(d){
+  api("/api/settings/block-date/"+d,{method:"DELETE"}).then(function(){toast("Date unblocked!");loadAll();});
+}
+
+function blockSlot(){
+  var gameId=document.getElementById("bs-game").value;
+  var dateKey=document.getElementById("bs-date").value;
+  var timeSlot=document.getElementById("bs-slot").value;
+  if(!dateKey){alert("Please select a date.");return;}
+  api("/api/settings/block-slot",{method:"POST",body:JSON.stringify({gameId,dateKey,timeSlot})})
+  .then(function(){toast("Slot blocked!");loadAll();});
+}
+
+function unblockSlotSettings(gameId,dateKey,timeSlot){
+  api("/api/settings/block-slot",{method:"DELETE",body:JSON.stringify({gameId,dateKey,timeSlot})})
+  .then(function(){toast("Slot unblocked!");loadAll();});
+}
+
+// Modal
+function openModal(id){
+  var b=allBookings.find(function(x){return x.id===id;});if(!b)return;selId=id;
+  document.getElementById("m-icon").innerHTML=ICONS[b.gameId]||"&#127918;";
+  document.getElementById("m-id").textContent="#"+b.id;
+  document.getElementById("m-pill").innerHTML=b.status==="confirmed"?'<span class="pill pok">CONFIRMED</span>':'<span class="pill pno">CANCELLED</span>';
+  var rows=[["Guest",b.name],["Phone",b.phone],["Game",b.gameName],["Date",b.date],["Time",b.timeSlot],["Group",b.group],["Payment",b.pay],["Language",(b.lang||"en").toUpperCase()],["Booked at",new Date(b.createdAt).toLocaleString("en-IN")]];
+  document.getElementById("m-body").innerHTML=rows.map(function(r){return'<div class="drow"><span class="dlbl">'+esc(r[0])+'</span><span class="dval">'+esc(r[1])+'</span></div>';}).join("");
+  var cb=document.getElementById("m-cancel");
+  if(b.status==="confirmed")cb.classList.remove("hidden");else cb.classList.add("hidden");
+  document.getElementById("modal-ov").classList.remove("hidden");
+}
+document.getElementById("xbtn").onclick=closeModal;
+document.getElementById("modal-ov").onclick=function(e){if(e.target===this)closeModal();};
+function closeModal(){document.getElementById("modal-ov").classList.add("hidden");selId=null;}
+document.getElementById("m-cancel").onclick=function(){
+  if(!selId)return;
+  api("/api/bookings/"+selId+"/cancel",{method:"PATCH"}).then(function(){closeModal();toast("Booking cancelled.");loadAll();});
 };
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-if(token) {
-  document.getElementById("login-screen").classList.add("hidden");
-  document.getElementById("app").classList.remove("hidden");
-  loadAll();
-}
-
-setInterval(loadAll, 30000);
+// Init
+if(token){document.getElementById("login-screen").classList.add("hidden");document.getElementById("app").classList.remove("hidden");loadAll();}
+setInterval(loadAll,30000);
 </script>
 </body>
 </html>

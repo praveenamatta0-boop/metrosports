@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Nagole Sports Lounge — Aria Call Assistant + Admin Dashboard
-//  Single file: index.js
-//  Deploy on Render. Set env vars: ADMIN_PASS, JWT_SECRET
+//  Nagole Sports Lounge — Aria Call Assistant v9
+//  DTMF-only IVR (name=speech only), next-hour slot filtering,
+//  settings API (add/edit games, block dates/slots), dashboard served
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require("express");
@@ -9,6 +9,7 @@ const twilio  = require("twilio");
 const bcrypt  = require("bcryptjs");
 const jwt     = require("jsonwebtoken");
 const cors    = require("cors");
+const path    = require("path");
 const { VoiceResponse } = twilio.twiml;
 
 const app = express();
@@ -16,224 +17,182 @@ app.use(cors());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// ── Config ────────────────────────────────────────────────────────────────────
-const ARENA      = "Nagole Sports Lounge";
-const JWT_SECRET = process.env.JWT_SECRET  || "nsl-change-me";
-const ADMIN_USER = process.env.ADMIN_USER  || "admin";
-const ADMIN_PASS = process.env.ADMIN_PASS  || "nsl@1234";
+// Config
+const JWT_SECRET = process.env.JWT_SECRET || "nsl-change-me";
+const ADMIN_USER = process.env.ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.ADMIN_PASS || "nsl@1234";
 const ADMIN_HASH = bcrypt.hashSync(ADMIN_PASS, 10);
 
-// ── Static data ───────────────────────────────────────────────────────────────
-const GAMES = [
-  { id:"pool",         name:"Pool Table",       rate:300, max:4 },
-  { id:"cricket",      name:"Cricket Pitch",    rate:800, max:2 },
-  { id:"volleyball",   name:"Beach Volleyball", rate:500, max:2 },
-  { id:"table_tennis", name:"Table Tennis",     rate:250, max:3 },
-  { id:"badminton",    name:"Badminton",        rate:400, max:2 },
-];
+// Mutable settings
+let SETTINGS = {
+  arenaName: "Nagole Sports Lounge",
+  openHour:  8,
+  closeHour: 23,
+  games: [
+    { id:"pool",         name:"Pool Table",       rate:300, courts:4, active:true },
+    { id:"cricket",      name:"Cricket Pitch",    rate:800, courts:2, active:true },
+    { id:"volleyball",   name:"Beach Volleyball", rate:500, courts:2, active:true },
+    { id:"table_tennis", name:"Table Tennis",     rate:250, courts:3, active:true },
+    { id:"badminton",    name:"Badminton",        rate:400, courts:2, active:true },
+  ],
+  blockedDates: [],
+  blockedSlots: [],
+};
 
-const TIME_SLOTS = [
-  "8 AM","9 AM","10 AM","11 AM","12 PM",
-  "1 PM","2 PM","3 PM","4 PM","5 PM",
-  "6 PM","7 PM","8 PM","9 PM","10 PM",
-];
+const bookings = [];
 
-const GROUP_LABELS = {
+// Helpers
+function activeGames() { return SETTINGS.games.filter(g => g.active); }
+
+function allTimeSlots() {
+  const slots = [];
+  for (let h = SETTINGS.openHour; h < SETTINGS.closeHour; h++) {
+    slots.push(h < 12 ? h + " AM" : h === 12 ? "12 PM" : (h-12) + " PM");
+  }
+  return slots;
+}
+
+function getDates() {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return {
+      key:   d.toISOString().split("T")[0],
+      label: d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }),
+    };
+  });
+}
+
+function slotToHour(slot) {
+  const m = slot.match(/(\d+)\s*(AM|PM)/);
+  if (!m) return 0;
+  let h = parseInt(m[1]);
+  if (m[2] === "PM" && h !== 12) h += 12;
+  if (m[2] === "AM" && h === 12) h = 0;
+  return h;
+}
+
+function getAvailableSlots(gameId, dateKey) {
+  const game = SETTINGS.games.find(g => g.id === gameId);
+  if (!game || !game.active) return [];
+  if (SETTINGS.blockedDates.includes(dateKey)) return [];
+  const todayKey = new Date().toISOString().split("T")[0];
+  const nowHour  = new Date().getHours();
+  return allTimeSlots().filter(slot => {
+    const h = slotToHour(slot);
+    if (dateKey === todayKey && h <= nowHour) return false;
+    if (SETTINGS.blockedSlots.some(b => b.gameId===gameId && b.dateKey===dateKey && b.timeSlot===slot)) return false;
+    const booked = bookings.filter(b => b.gameId===gameId && b.dateKey===dateKey && b.timeSlot===slot && b.status==="confirmed").length;
+    return booked < game.courts;
+  });
+}
+
+function bookedCount(gameId, dateKey, slot) {
+  return bookings.filter(b => b.gameId===gameId && b.dateKey===dateKey && b.timeSlot===slot && b.status==="confirmed").length;
+}
+
+function genId() { return "NSL-" + Math.random().toString(36).substr(2,6).toUpperCase(); }
+
+// Group labels per language
+const GRP = {
   en:["1-2 people","3-5 people","6-10 people","11-20 people","20+ people"],
   hi:["1-2 log","3-5 log","6-10 log","11-20 log","20+ log"],
   te:["1-2 mandi","3-5 mandi","6-10 mandi","11-20 mandi","20+ mandi"],
 };
 
-// ── Booking store (in-memory — replace with DB for production) ────────────────
-const bookings = [];
-
-function getDates() {
-  return Array.from({length:7}, (_,i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return {
-      key:   d.toISOString().split("T")[0],
-      label: d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"}),
-    };
-  });
+// Scripts
+function script(lang) {
+  const name = SETTINGS.arenaName;
+  const scripts = {
+    en: {
+      code:"en-IN", voice:"Polly.Aditi",
+      welcome:  "Welcome to " + name + ". Press 1 for English. Press 2 for Hindi. Press 3 for Telugu.",
+      game:     function(g){ return "Select game. " + g.map(function(x,i){ return "Press "+(i+1)+" for "+x.name+"."; }).join(" "); },
+      date:     function(d){ return "Select date. " + d.map(function(x,i){ return "Press "+(i+1)+" for "+x.label+"."; }).join(" "); },
+      time:     function(s){ return "Available slots. " + s.map(function(x,i){ return "Press "+(i+1)+" for "+x+"."; }).join(" "); },
+      noSlots:  "No slots available. Press 1 for another date. Press 2 for another game.",
+      group:    "How many people? Press 1 for 1 to 2. Press 2 for 3 to 5. Press 3 for 6 to 10. Press 4 for 11 to 20. Press 5 for more than 20.",
+      namePr:   "Please say your name after the beep.",
+      phone:    function(n){ return "Thanks " + (n?n.split(" ")[0]+". ":"") + "Press your 10 digit mobile number followed by hash key."; },
+      pay:      "Payment. Press 1 for Cash. Press 2 for Card. Press 3 for UPI.",
+      confirm:  function(s){ return "Confirming: "+s.gameName+", "+s.date+", "+s.timeSlot+", "+s.group+", name "+s.name+", "+s.pay+". Press 1 to confirm. Press 2 to restart."; },
+      done:     function(s){ return "Booking confirmed! ID is "+s.id+". "+s.gameName+" on "+s.date+" at "+s.timeSlot+". See you at "+name+"! Goodbye."; },
+      restart:  "Starting again. ",
+      invalid:  "Invalid. Try again. ",
+      noHear:   "Did not catch that. ",
+      bye:      "Thank you for calling "+name+". Goodbye.",
+      blocked:  "Bookings are not available on that date. Please choose another date.",
+    },
+    hi: {
+      code:"hi-IN", voice:"Polly.Aditi",
+      welcome:  null,
+      game:     function(g){ return "Game chuniye. " + g.map(function(x,i){ return (i+1)+" dabaye "+x.name+"."; }).join(" "); },
+      date:     function(d){ return "Date chuniye. " + d.map(function(x,i){ return (i+1)+" dabaye "+x.label+"."; }).join(" "); },
+      time:     function(s){ return "Available slots. " + s.map(function(x,i){ return (i+1)+" dabaye "+x+"."; }).join(" "); },
+      noSlots:  "Koi slot nahi hai. 1 dabaye doosri date. 2 dabaye doosra game.",
+      group:    "Kitne log? 1 dabaye 1-2. 2 dabaye 3-5. 3 dabaye 6-10. 4 dabaye 11-20. 5 dabaye 20 se zyada.",
+      namePr:   "Beep ke baad apna naam boliye.",
+      phone:    function(n){ return "Shukriya "+(n?n.split(" ")[0]+". ":"")+"Apna 10 digit number dabaye aur hash press kariye."; },
+      pay:      "Payment. 1 dabaye Cash. 2 dabaye Card. 3 dabaye UPI.",
+      confirm:  function(s){ return "Confirm karein: "+s.gameName+", "+s.date+", "+s.timeSlot+", "+s.group+", naam "+s.name+", "+s.pay+". 1 dabaye confirm. 2 dabaye restart."; },
+      done:     function(s){ return "Booking ho gayi! ID hai "+s.id+". "+s.gameName+", "+s.date+", "+s.timeSlot+". "+name+" mein milenge! Alvida."; },
+      restart:  "Phir se shuru. ",
+      invalid:  "Galat. Dobara try kariye. ",
+      noHear:   "Sunai nahi diya. ",
+      bye:      name+" mein call ke liye shukriya. Alvida.",
+      blocked:  "Us date pe booking band hai. Doosri date chuniye.",
+    },
+    te: {
+      code:"te-IN", voice:"Polly.Aditi",
+      welcome:  null,
+      game:     function(g){ return "Game select cheskoundi. " + g.map(function(x,i){ return (i+1)+" press chesthe "+x.name+"."; }).join(" "); },
+      date:     function(d){ return "Date select cheskoundi. " + d.map(function(x,i){ return (i+1)+" press chesthe "+x.label+"."; }).join(" "); },
+      time:     function(s){ return "Available slots. " + s.map(function(x,i){ return (i+1)+" press chesthe "+x+"."; }).join(" "); },
+      noSlots:  "Slots levu. 1 press chesthe vera date. 2 press chesthe vera game.",
+      group:    "Entha mandi? 1 press chesthe 1-2. 2 press chesthe 3-5. 3 press chesthe 6-10. 4 press chesthe 11-20. 5 press chesthe 20 kante ekkuva.",
+      namePr:   "Beep taruvata mee peru cheppandi.",
+      phone:    function(n){ return "Dhanyavaadaalu "+(n?n.split(" ")[0]+". ":"")+"Mee 10 digit number type chesandi, hash press chesandi."; },
+      pay:      "Payment. 1 press chesthe Cash. 2 press chesthe Card. 3 press chesthe UPI.",
+      confirm:  function(s){ return "Confirm cheskoundi: "+s.gameName+", "+s.date+", "+s.timeSlot+", "+s.group+", peru "+s.name+", "+s.pay+". 1 press chesthe confirm. 2 press chesthe restart."; },
+      done:     function(s){ return "Booking confirm! ID "+s.id+". "+s.gameName+", "+s.date+", "+s.timeSlot+". "+name+" lo kaladudam! Goodbye."; },
+      restart:  "Malli modalupetudaam. ",
+      invalid:  "Tappu. Malli try cheskoundi. ",
+      noHear:   "Artham kaaledu. ",
+      bye:      name+" ki call chesinduku dhanyavaadaalu. Goodbye.",
+      blocked:  "Aa date ki bookings levu. Vera date select cheskoundi.",
+    },
+  };
+  return scripts[lang] || scripts.en;
 }
 
-function bookedCount(gameId, dateKey, slot) {
-  return bookings.filter(b=>b.gameId===gameId&&b.dateKey===dateKey&&b.timeSlot===slot&&b.status==="confirmed").length;
-}
-
-function availSlots(gameId, dateKey) {
-  const game = GAMES.find(g=>g.id===gameId);
-  return TIME_SLOTS.filter(ts => bookedCount(gameId,dateKey,ts) < game.max);
-}
-
-function genId() { return "NSL-"+Math.random().toString(36).substr(2,6).toUpperCase(); }
-
-// ── Multilingual scripts (all Roman so Polly.Aditi speaks clearly) ────────────
-const L = {
-  en:{
-    code:"en-IN", voice:"Polly.Aditi",
-    welcome:  `Welcome to ${ARENA}. Press 1 or say English. Press 2 or say Hindi. Press 3 or say Telugu.`,
-    game:     "Which game? Press 1 Pool Table. Press 2 Cricket Pitch. Press 3 Beach Volleyball. Press 4 Table Tennis. Press 5 Badminton.",
-    date:     d=>"Which date? "+d.map((x,i)=>`Press ${i+1} for ${x.label}.`).join(" "),
-    time:     s=>"Available times. "+s.map((x,i)=>`Press ${i+1} or say ${x}.`).join(" "),
-    noSlots:  "No slots for that date. Press 1 for another date. Press 2 for another game.",
-    group:    "How many people? Press 1 for 1 to 2. Press 2 for 3 to 5. Press 3 for 6 to 10. Press 4 for 11 to 20. Press 5 for more than 20.",
-    name:     "Please say your name.",
-    phone:    "Please say or press your 10 digit mobile number.",
-    pay:      "Payment? Press 1 or say Cash. Press 2 or say Card. Press 3 or say UPI.",
-    confirm:  s=>`Confirm: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.group}, name ${s.name}, ${s.pay}. Press 1 to confirm or press 2 to restart.`,
-    done:     s=>`Booking confirmed! ID is ${s.id}. ${s.game.name} on ${s.date} at ${s.timeSlot}. See you at ${ARENA}! Goodbye.`,
-    restart:  "Let's start again. ",
-    invalid:  "Invalid. Try again. ",
-    noHear:   "Didn't catch that. ",
-    bye:      `Thank you for calling ${ARENA}. Goodbye.`,
-  },
-  hi:{
-    code:"hi-IN", voice:"Polly.Aditi",
-    welcome:  null,
-    game:     "Game chuniye. 1 Pool Table. 2 Cricket Pitch. 3 Beach Volleyball. 4 Table Tennis. 5 Badminton.",
-    date:     d=>"Date chuniye. "+d.map((x,i)=>`${i+1} dabaye ${x.label} ke liye.`).join(" "),
-    time:     s=>"Available times. "+s.map((x,i)=>`${i+1} dabaye ya boliye ${x}.`).join(" "),
-    noSlots:  "Us date pe koi slot nahi. 1 dabaye doosri date. 2 dabaye doosra game.",
-    group:    "Kitne log? 1 dabaye 1-2. 2 dabaye 3-5. 3 dabaye 6-10. 4 dabaye 11-20. 5 dabaye 20+.",
-    name:     "Apna naam boliye.",
-    phone:    "Apna 10 digit number boliye ya type kariye.",
-    pay:      "Payment? 1 ya Cash boliye. 2 ya Card boliye. 3 ya UPI boliye.",
-    confirm:  s=>`Confirm karein: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.group}, naam ${s.name}, ${s.pay}. 1 dabaye confirm, 2 dabaye restart.`,
-    done:     s=>`Booking ho gayi! ID hai ${s.id}. ${s.game.name}, ${s.date}, ${s.timeSlot}. ${ARENA} mein milenge! Alvida.`,
-    restart:  "Phir se shuru. ",
-    invalid:  "Galat. Dobara try. ",
-    noHear:   "Sunai nahi diya. ",
-    bye:      `${ARENA} mein call ke liye shukriya. Alvida.`,
-  },
-  te:{
-    code:"te-IN", voice:"Polly.Aditi",
-    welcome:  null,
-    game:     "Game select cheskoundi. 1 Pool Table. 2 Cricket Pitch. 3 Beach Volleyball. 4 Table Tennis. 5 Badminton.",
-    date:     d=>"Date select cheskoundi. "+d.map((x,i)=>`${i+1} press chesthe ${x.label}.`).join(" "),
-    time:     s=>"Available times. "+s.map((x,i)=>`${i+1} press chesthe leда ${x} cheppandi.`).join(" "),
-    noSlots:  "Aa date ki slots levu. 1 press chesthe vera date. 2 press chesthe vera game.",
-    group:    "Entha mandi? 1 press chesthe 1-2. 2 press chesthe 3-5. 3 press chesthe 6-10. 4 press chesthe 11-20. 5 press chesthe 20+.",
-    name:     "Mee peru cheppandi.",
-    phone:    "Mee 10 digit number cheppandi leда type chesandi.",
-    pay:      "Payment? 1 leда Cash cheppandi. 2 leда Card cheppandi. 3 leда UPI cheppandi.",
-    confirm:  s=>`Confirm cheskoundi: ${s.game.name}, ${s.date}, ${s.timeSlot}, ${s.group}, peru ${s.name}, ${s.pay}. 1 press chesthe confirm, 2 press chesthe restart.`,
-    done:     s=>`Booking confirm! ID ${s.id}. ${s.game.name}, ${s.date}, ${s.timeSlot}. ${ARENA} lo kaladudam! Goodbye.`,
-    restart:  "Malli modalupetudaam. ",
-    invalid:  "Tappu. Malli try cheskoundi. ",
-    noHear:   "Artham kaaledu. ",
-    bye:      `${ARENA} ki call chesinduku dhanyavaadaalu. Goodbye.`,
-  },
-};
-
-// ── Session store ─────────────────────────────────────────────────────────────
+// Sessions
 const sessions = {};
 function sess(sid) {
   if (!sessions[sid]) sessions[sid] = { step:"lang", lang:"en" };
   return sessions[sid];
 }
 
-// ── TwiML helpers ─────────────────────────────────────────────────────────────
-// Every gather accepts BOTH dtmf and speech so caller can use either
-function gather(twiml, lang, numDigits=1) {
-  return twiml.gather({
-    input:         "dtmf speech",
-    action:        "/respond",
-    method:        "POST",
-    timeout:       12,
-    numDigits:     numDigits,
-    speechTimeout: 3,
-    language:      L[lang].code,
-  });
+// Gathers
+function dtmfGather(twiml, lang, numDigits) {
+  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:15, numDigits:numDigits||1, language:script(lang).code });
 }
-
-// For phone number — accept up to 10 digit keypress OR speech
 function phoneGather(twiml, lang) {
-  return twiml.gather({
-    input:         "dtmf speech",
-    action:        "/respond",
-    method:        "POST",
-    timeout:       15,
-    numDigits:     10,
-    speechTimeout: 4,
-    language:      L[lang].code,
-    finishOnKey:   "#",   // caller can press # to finish early
-  });
+  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:20, numDigits:10, finishOnKey:"#", language:script(lang).code });
 }
-
-// For free-speech fields (name, time)
-function speechGather(twiml, lang) {
-  return twiml.gather({
-    input:         "speech dtmf",
-    action:        "/respond",
-    method:        "POST",
-    speechTimeout: 3,
-    timeout:       12,
-    numDigits:     1,
-    language:      L[lang].code,
-  });
+function nameGather(twiml, lang) {
+  return twiml.gather({ input:"speech", action:"/respond", method:"POST", speechTimeout:3, timeout:12, language:script(lang).code });
 }
+function sendXml(res, twiml) { res.type("text/xml"); res.send(twiml.toString()); }
 
-function send(res, twiml) {
-  res.type("text/xml");
-  res.send(twiml.toString());
-}
-
-// ── Time parsing from speech ──────────────────────────────────────────────────
-function parseTime(text) {
-  const t = text.toLowerCase();
-  // "5 pm", "5pm", "17:00"
-  const m = t.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
-  if (m) {
-    let h = parseInt(m[1]);
-    const ampm = m[3];
-    if (ampm==="pm" && h!==12) h+=12;
-    if (ampm==="am" && h===12) h=0;
-    const label = h<12?`${h} AM`:h===12?"12 PM":`${h-12} PM`;
-    return TIME_SLOTS.includes(label) ? label : null;
-  }
-  // plain "5 o'clock", "at 5"
-  const p = t.match(/(?:at\s+)?(\d{1,2})\s*(?:o'clock|baje|gantala)?/);
-  if (p) {
-    let h = parseInt(p[1]);
-    if (h>=1&&h<=7) h+=12;
-    const label = h<12?`${h} AM`:h===12?"12 PM":`${h-12} PM`;
-    return TIME_SLOTS.includes(label) ? label : null;
-  }
-  return null;
-}
-
-// ── Language detection from speech ───────────────────────────────────────────
-function detectLang(text) {
-  const t = text.toLowerCase();
-  if (t.includes("english") || t.includes("inglish")) return "en";
-  if (t.includes("hindi")   || t.includes("hind"))    return "hi";
-  if (t.includes("telugu"))                            return "te";
-  return null;
-}
-
-// ── Payment detection from speech ─────────────────────────────────────────────
-function detectPay(text) {
-  const t = text.toLowerCase();
-  if (t.includes("upi")||t.includes("gpay")||t.includes("phonepe")||t.includes("paytm")) return "UPI";
-  if (t.includes("card")||t.includes("credit")||t.includes("debit"))                      return "Card";
-  if (t.includes("cash")||t.includes("nakadu"))                                           return "Cash";
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  IVR Routes
-// ─────────────────────────────────────────────────────────────────────────────
-
+// IVR
 app.post("/incoming", (req,res) => {
   const sid = req.body.CallSid;
   sessions[sid] = { step:"lang", lang:"en" };
   const twiml = new VoiceResponse();
-  const g = gather(twiml, "en");
-  g.say({ voice:"Polly.Aditi" }, L.en.welcome);
+  const g = dtmfGather(twiml, "en");
+  g.say({ voice:"Polly.Aditi" }, script("en").welcome);
   twiml.redirect("/incoming");
-  send(res, twiml);
+  sendXml(res, twiml);
 });
 
 app.post("/respond", (req,res) => {
@@ -241,181 +200,140 @@ app.post("/respond", (req,res) => {
   const digits = (req.body.Digits||"").trim();
   const speech = (req.body.SpeechResult||"").trim();
   const s      = sess(sid);
-  const lc     = L[s.lang];
+  const lc     = script(s.lang);
   const v      = lc.voice;
   const twiml  = new VoiceResponse();
 
-  // prefer digits, fall back to speech
-  const pressed = digits || "";
-  const said    = speech || "";
-  const input   = pressed || said;
+  console.log("["+sid+"]["+s.lang+"]["+s.step+"] d="+digits+" sp="+speech);
 
-  console.log(`[${sid}][${s.lang}][${s.step}] pressed="${pressed}" said="${said}"`);
-
-  // ── helpers ──
-  function ask(prompt, gType="dtmf") {
-    const g = gType==="phone"   ? phoneGather(twiml, s.lang)
-            : gType==="speech"  ? speechGather(twiml, s.lang)
-            : gather(twiml, s.lang);
+  function askDtmf(prompt, nd) {
+    const g = dtmfGather(twiml, s.lang, nd||1);
     g.say({ voice:v }, prompt);
     sessions[sid] = s;
-    send(res, twiml);
+    sendXml(res, twiml);
   }
-
-  function retry(prompt, gType="dtmf") {
-    const g = gType==="phone"   ? phoneGather(twiml, s.lang)
-            : gType==="speech"  ? speechGather(twiml, s.lang)
-            : gather(twiml, s.lang);
+  function askPhone(prompt) {
+    const g = phoneGather(twiml, s.lang);
+    g.say({ voice:v }, prompt);
+    sessions[sid] = s;
+    sendXml(res, twiml);
+  }
+  function askName(prompt) {
+    const g = nameGather(twiml, s.lang);
+    g.say({ voice:v }, prompt);
+    sessions[sid] = s;
+    sendXml(res, twiml);
+  }
+  function inv(prompt, nd) {
+    const g = dtmfGather(twiml, s.lang, nd||1);
     g.say({ voice:v }, lc.invalid + prompt);
     sessions[sid] = s;
-    send(res, twiml);
+    sendXml(res, twiml);
   }
-
   function end(msg) {
     twiml.say({ voice:v }, msg);
     twiml.hangup();
     delete sessions[sid];
-    send(res, twiml);
+    sendXml(res, twiml);
   }
 
-  // ── LANG SELECT ──────────────────────────────────────────────────────────
   if (s.step === "lang") {
-    const map = {"1":"en","2":"hi","3":"te"};
-    const chosen = map[pressed] || detectLang(said);
-    if (!chosen) return retry(L.en.welcome);
-    s.lang = chosen; s.step = "game";
-    return ask(L[chosen].game);
+    if (!["1","2","3"].includes(digits)) return inv(script("en").welcome);
+    s.lang = digits==="1"?"en":digits==="2"?"hi":"te";
+    s.step = "game";
+    return askDtmf(script(s.lang).game(activeGames()));
   }
 
-  // ── GAME ─────────────────────────────────────────────────────────────────
   if (s.step === "game") {
-    const idx = parseInt(input) - 1;
-    if (isNaN(idx)||idx<0||idx>4) return retry(lc.game);
-    s.game = GAMES[idx]; s.step = "date";
-    return ask(lc.date(getDates()));
+    const games = activeGames();
+    const idx   = parseInt(digits)-1;
+    if (isNaN(idx)||idx<0||idx>=games.length) return inv(lc.game(games));
+    s.gameId = games[idx].id; s.gameName = games[idx].name;
+    s.step = "date";
+    return askDtmf(lc.date(getDates()));
   }
 
-  // ── DATE ─────────────────────────────────────────────────────────────────
   if (s.step === "date") {
     const dates = getDates();
-    const idx   = parseInt(input) - 1;
-    if (isNaN(idx)||idx<0||idx>=dates.length) return retry(lc.date(dates));
-    s.dateKey   = dates[idx].key;
-    s.date      = dates[idx].label;
-    const slots = availSlots(s.game.id, s.dateKey);
-    if (slots.length === 0) { s.step = "noSlots"; return ask(lc.noSlots); }
-    s.slots = slots; s.step = "time";
-    return ask(lc.time(slots), "speech");  // TIME = speech or keypress
-  }
-
-  // ── NO SLOTS ─────────────────────────────────────────────────────────────
-  if (s.step === "noSlots") {
-    if (input==="1") { s.step="date"; return ask(lc.date(getDates())); }
-    if (input==="2") { s.step="game"; return ask(lc.game); }
-    return retry(lc.noSlots);
-  }
-
-  // ── TIME — speech OR keypress ─────────────────────────────────────────────
-  if (s.step === "time") {
-    const slots = s.slots || TIME_SLOTS;
-    let chosen  = null;
-
-    // Try keypress first
-    const ki = parseInt(pressed) - 1;
-    if (!isNaN(ki) && ki>=0 && ki<slots.length) chosen = slots[ki];
-
-    // Then try speech
-    if (!chosen && said) {
-      const parsed = parseTime(said);
-      if (parsed && slots.includes(parsed)) chosen = parsed;
-      // also allow saying "1", "2" etc
-      const si = parseInt(said) - 1;
-      if (!chosen && !isNaN(si) && si>=0 && si<slots.length) chosen = slots[si];
+    const idx   = parseInt(digits)-1;
+    if (isNaN(idx)||idx<0||idx>=dates.length) return inv(lc.date(dates));
+    if (SETTINGS.blockedDates.includes(dates[idx].key)) {
+      return askDtmf(lc.blocked + " " + lc.date(dates));
     }
-
-    if (!chosen) return retry(lc.time(slots), "speech");
-    s.timeSlot = chosen; s.step = "group";
-    return ask(lc.group);
+    s.dateKey = dates[idx].key; s.date = dates[idx].label;
+    const slots = getAvailableSlots(s.gameId, s.dateKey);
+    if (!slots.length) { s.step="noSlots"; return askDtmf(lc.noSlots); }
+    s.slots = slots; s.step = "time";
+    return askDtmf(lc.time(slots));
   }
 
-  // ── GROUP ─────────────────────────────────────────────────────────────────
+  if (s.step === "noSlots") {
+    if (digits==="1") { s.step="date"; return askDtmf(lc.date(getDates())); }
+    if (digits==="2") { s.step="game"; return askDtmf(lc.game(activeGames())); }
+    return inv(lc.noSlots);
+  }
+
+  if (s.step === "time") {
+    const slots = s.slots||[];
+    const idx   = parseInt(digits)-1;
+    if (isNaN(idx)||idx<0||idx>=slots.length) return inv(lc.time(slots));
+    s.timeSlot = slots[idx]; s.step = "group";
+    return askDtmf(lc.group);
+  }
+
   if (s.step === "group") {
-    const idx = parseInt(input) - 1;
-    if (isNaN(idx)||idx<0||idx>4) return retry(lc.group);
-    s.group = GROUP_LABELS[s.lang][idx]; s.step = "name";
-    return ask(lc.name, "speech");
+    const idx = parseInt(digits)-1;
+    if (isNaN(idx)||idx<0||idx>4) return inv(lc.group);
+    s.group = GRP[s.lang][idx]; s.step = "name";
+    return askName(lc.namePr);
   }
 
-  // ── NAME — speech only ────────────────────────────────────────────────────
   if (s.step === "name") {
-    const name = said.replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i,"").trim();
-    if (!name || name.length < 2) return ask(lc.noHear + lc.name, "speech");
+    const name = speech.trim().replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i,"").trim();
+    if (!name||name.length<2) return askName(lc.noHear+lc.namePr);
     s.name = name; s.step = "phone";
-    return ask(lc.phone, "phone");
+    return askPhone(lc.phone(s.name));
   }
 
-  // ── PHONE — keypress (up to 10 digits) OR speech ─────────────────────────
   if (s.step === "phone") {
-    const raw = (pressed + said).replace(/[\s\-\(\)]/g,"");
-    const ph  = raw.match(/(\+?91)?([6-9]\d{9})/);
-    if (!ph) return ask(lc.noHear + lc.phone, "phone");
-    s.phone = ph[2]; s.step = "pay";
-    return ask(lc.pay);
+    const raw = digits.replace(/[\s\-]/g,"");
+    const ph  = raw.match(/([6-9]\d{9})/);
+    if (!ph) return askPhone(lc.noHear+lc.phone(s.name));
+    s.phone = ph[1]; s.step = "pay";
+    return askDtmf(lc.pay);
   }
 
-  // ── PAYMENT — keypress OR speech ─────────────────────────────────────────
   if (s.step === "pay") {
     const map = {"1":"Cash","2":"Card","3":"UPI"};
-    const chosen = map[pressed] || detectPay(said);
-    if (!chosen) return retry(lc.pay);
-    s.pay = chosen; s.step = "confirm";
-    return ask(lc.confirm(s));
+    if (!map[digits]) return inv(lc.pay);
+    s.pay = map[digits]; s.step = "confirm";
+    return askDtmf(lc.confirm(s));
   }
 
-  // ── CONFIRM ───────────────────────────────────────────────────────────────
   if (s.step === "confirm") {
-    const yes = pressed==="1" || /\b(yes|confirm|correct|ok|haan|avunu|sare)\b/.test(said.toLowerCase());
-    const no  = pressed==="2" || /\b(no|wrong|restart|nahi|kaadu)\b/.test(said.toLowerCase());
-
-    if (yes) {
-      const b = {
-        id:        genId(),
-        gameId:    s.game.id,
-        gameName:  s.game.name,
-        gameRate:  s.game.rate,
-        dateKey:   s.dateKey,
-        date:      s.date,
-        timeSlot:  s.timeSlot,
-        group:     s.group,
-        name:      s.name,
-        phone:     s.phone,
-        pay:       s.pay,
-        lang:      s.lang,
-        status:    "confirmed",
-        createdAt: new Date().toISOString(),
-      };
-      bookings.push(b);
-      s.id = b.id;
+    if (digits==="1") {
+      const b = { id:genId(), gameId:s.gameId, gameName:s.gameName,
+        gameRate:SETTINGS.games.find(g=>g.id===s.gameId)?.rate||0,
+        dateKey:s.dateKey, date:s.date, timeSlot:s.timeSlot,
+        group:s.group, name:s.name, phone:s.phone, pay:s.pay,
+        lang:s.lang, status:"confirmed", createdAt:new Date().toISOString() };
+      bookings.push(b); s.id = b.id;
       return end(lc.done(s));
     }
-    if (no) {
+    if (digits==="2") {
       sessions[sid] = { step:"game", lang:s.lang };
-      const twiml2 = new VoiceResponse();
-      const g = gather(twiml2, s.lang);
-      g.say({ voice:v }, L[s.lang].restart + L[s.lang].game);
-      return send(res, twiml2);
+      const t2 = new VoiceResponse();
+      const g2 = dtmfGather(t2, s.lang);
+      g2.say({ voice:v }, script(s.lang).restart + script(s.lang).game(activeGames()));
+      return sendXml(res, t2);
     }
-    return retry(lc.confirm(s));
+    return inv(lc.confirm(s));
   }
 
-  // Fallback
   end(lc.bye);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  REST API (for dashboard)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// Auth
 function auth(req,res,next) {
   const h = req.headers.authorization;
   if (!h||!h.startsWith("Bearer ")) return res.status(401).json({error:"Unauthorized"});
@@ -423,11 +341,12 @@ function auth(req,res,next) {
   catch { res.status(401).json({error:"Token invalid"}); }
 }
 
+// API
 app.post("/api/login", (req,res) => {
   const {username,password} = req.body;
-  if (username!==ADMIN_USER || !bcrypt.compareSync(password,ADMIN_HASH))
+  if (username!==ADMIN_USER||!bcrypt.compareSync(password,ADMIN_HASH))
     return res.status(401).json({error:"Wrong credentials"});
-  res.json({ token: jwt.sign({username}, JWT_SECRET, {expiresIn:"12h"}) });
+  res.json({ token:jwt.sign({username},JWT_SECRET,{expiresIn:"12h"}) });
 });
 
 app.get("/api/bookings", auth, (req,res) => {
@@ -437,8 +356,7 @@ app.get("/api/bookings", auth, (req,res) => {
 app.patch("/api/bookings/:id/cancel", auth, (req,res) => {
   const b = bookings.find(x=>x.id===req.params.id);
   if (!b) return res.status(404).json({error:"Not found"});
-  b.status = "cancelled";
-  res.json(b);
+  b.status = "cancelled"; res.json(b);
 });
 
 app.get("/api/stats", auth, (req,res) => {
@@ -454,26 +372,80 @@ app.get("/api/stats", auth, (req,res) => {
 
 app.get("/api/availability", auth, (req,res) => {
   const dates = getDates();
+  const slots = allTimeSlots();
   const grid  = [];
-  for (const game of GAMES)
+  for (const game of SETTINGS.games)
     for (const date of dates)
-      for (const slot of TIME_SLOTS) {
-        const booked = bookedCount(game.id, date.key, slot);
-        grid.push({ gameId:game.id, gameName:game.name, gameMax:game.max,
-                    dateKey:date.key, dateLabel:date.label, timeSlot:slot,
-                    booked, available:game.max-booked });
+      for (const slot of slots) {
+        const booked = bookedCount(game.id,date.key,slot);
+        const blocked = SETTINGS.blockedSlots.some(b=>b.gameId===game.id&&b.dateKey===date.key&&b.timeSlot===slot)
+                     || SETTINGS.blockedDates.includes(date.key);
+        grid.push({ gameId:game.id, gameName:game.name, gameMax:game.courts,
+          dateKey:date.key, dateLabel:date.label, timeSlot:slot,
+          booked, available:game.courts-booked, blocked, active:game.active });
       }
-  res.json({ games:GAMES, dates, timeSlots:TIME_SLOTS, grid });
+  res.json({ games:SETTINGS.games, dates, timeSlots:slots, grid });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Dashboard (served as HTML at /dashboard)
-// ─────────────────────────────────────────────────────────────────────────────
+app.get("/api/settings", auth, (req,res) => res.json(SETTINGS));
 
-
-app.get('/dashboard', (req,res) => {
-  res.sendFile(__dirname + '/dashboard.html');
+app.put("/api/settings", auth, (req,res) => {
+  const s = req.body;
+  if (s.arenaName)              SETTINGS.arenaName  = s.arenaName;
+  if (s.openHour  !== undefined) SETTINGS.openHour  = parseInt(s.openHour);
+  if (s.closeHour !== undefined) SETTINGS.closeHour = parseInt(s.closeHour);
+  res.json(SETTINGS);
 });
+
+app.post("/api/settings/games", auth, (req,res) => {
+  const { id, name, rate, courts, active } = req.body;
+  if (!id||!name) return res.status(400).json({error:"id and name required"});
+  const ex = SETTINGS.games.find(g=>g.id===id);
+  if (ex) {
+    if (name    !== undefined) ex.name    = name;
+    if (rate    !== undefined) ex.rate    = parseInt(rate);
+    if (courts  !== undefined) ex.courts  = parseInt(courts);
+    if (active  !== undefined) ex.active  = Boolean(active);
+  } else {
+    SETTINGS.games.push({ id, name, rate:parseInt(rate)||0, courts:parseInt(courts)||1, active:active!==false });
+  }
+  res.json(SETTINGS.games);
+});
+
+app.delete("/api/settings/games/:id", auth, (req,res) => {
+  SETTINGS.games = SETTINGS.games.filter(g=>g.id!==req.params.id);
+  res.json(SETTINGS.games);
+});
+
+app.post("/api/settings/block-date", auth, (req,res) => {
+  const { dateKey } = req.body;
+  if (!dateKey) return res.status(400).json({error:"dateKey required"});
+  if (!SETTINGS.blockedDates.includes(dateKey)) SETTINGS.blockedDates.push(dateKey);
+  res.json(SETTINGS.blockedDates);
+});
+
+app.delete("/api/settings/block-date/:dateKey", auth, (req,res) => {
+  SETTINGS.blockedDates = SETTINGS.blockedDates.filter(d=>d!==req.params.dateKey);
+  res.json(SETTINGS.blockedDates);
+});
+
+app.post("/api/settings/block-slot", auth, (req,res) => {
+  const { gameId, dateKey, timeSlot } = req.body;
+  if (!gameId||!dateKey||!timeSlot) return res.status(400).json({error:"gameId, dateKey, timeSlot required"});
+  if (!SETTINGS.blockedSlots.some(b=>b.gameId===gameId&&b.dateKey===dateKey&&b.timeSlot===timeSlot))
+    SETTINGS.blockedSlots.push({ gameId, dateKey, timeSlot });
+  res.json(SETTINGS.blockedSlots);
+});
+
+app.delete("/api/settings/block-slot", auth, (req,res) => {
+  const { gameId, dateKey, timeSlot } = req.body;
+  SETTINGS.blockedSlots = SETTINGS.blockedSlots.filter(b=>
+    !(b.gameId===gameId&&b.dateKey===dateKey&&b.timeSlot===timeSlot));
+  res.json(SETTINGS.blockedSlots);
+});
+
+app.get("/dashboard", (req,res) => res.sendFile(path.join(__dirname,"dashboard.html")));
+app.get("/", (req,res) => res.send(SETTINGS.arenaName+" — Aria v9 | /dashboard"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(ARENA + ' — Aria on port ' + PORT + '\nDashboard: http://localhost:' + PORT + '/dashboard'));
+app.listen(PORT, () => console.log(SETTINGS.arenaName+" on port "+PORT));

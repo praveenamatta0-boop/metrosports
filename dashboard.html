@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>NSL Admin</title>
+<title>MSL Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -140,7 +140,7 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
 <div id="login-screen">
   <div class="lbox">
     <div style="font-size:36px;margin-bottom:10px">&#127967;</div>
-    <h1>Nagole Sports Lounge</h1>
+    <h1>Metro Sports Lounge</h1>
     <div class="lsub">Admin Dashboard</div>
     <div class="err hidden" id="lerr">Invalid username or password.</div>
     <input id="lu" placeholder="Username" autocomplete="username"/>
@@ -154,7 +154,7 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
   <header>
     <div class="brand">
       <div class="brand-icon">&#127967;</div>
-      <div><div class="brand-name">Nagole Sports Lounge</div><div class="brand-sub">Admin Dashboard</div></div>
+      <div><div class="brand-name">Metro Sports Lounge</div><div class="brand-sub">Admin Dashboard</div></div>
     </div>
     <nav>
       <button class="nb on" onclick="showV('dashboard')">Dashboard</button>
@@ -328,7 +328,7 @@ main{max-width:1100px;margin:0 auto;padding:28px 20px}
 
 <script>
 var ICONS = {pool:"&#127921;",cricket:"&#127959;",volleyball:"&#127952;",table_tennis:"&#127955;",badminton:"&#127992;"};
-var token = localStorage.getItem("nsl_token")||"";
+var token = localStorage.getItem("msl_token")||"";
 var allBookings=[], availData=null, settingsData=null, curFilter="all";
 var selGame="pool", selDate=0, selId=null;
 
@@ -341,12 +341,12 @@ function doLogin(){
   document.getElementById("lerr").classList.add("hidden");
   fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})})
   .then(function(r){if(!r.ok)throw new Error();return r.json();})
-  .then(function(d){token=d.token;localStorage.setItem("nsl_token",token);document.getElementById("login-screen").classList.add("hidden");document.getElementById("app").classList.remove("hidden");loadAll();})
+  .then(function(d){token=d.token;localStorage.setItem("msl_token",token);document.getElementById("login-screen").classList.add("hidden");document.getElementById("app").classList.remove("hidden");loadAll();})
   .catch(function(){document.getElementById("lerr").classList.remove("hidden");});
 }
 document.getElementById("lbtn").onclick=doLogin;
 document.getElementById("lp").onkeydown=function(e){if(e.key==="Enter")doLogin();};
-function doLogout(){localStorage.removeItem("nsl_token");token="";location.reload();}
+function doLogout(){localStorage.removeItem("msl_token");token="";location.reload();}
 
 function api(path,opts){
   opts=opts||{};opts.headers=opts.headers||{};

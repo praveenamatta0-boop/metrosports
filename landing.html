@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Nagole Sports Lounge — Book a Slot</title>
+<title>Metro Sports Lounge — Book a Slot</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -132,7 +132,7 @@ footer{padding:40px;border-top:1px solid var(--border);display:flex;align-items:
 <nav>
   <div class="nav-brand">
     <div class="nav-logo">&#127967;</div>
-    <div class="nav-name" id="nav-name">NAGOLE SPORTS LOUNGE</div>
+    <div class="nav-name" id="nav-name">METRO SPORTS LOUNGE</div>
   </div>
   <a href="#book" class="nav-cta">Book Now</a>
 </nav>
@@ -275,7 +275,7 @@ footer{padding:40px;border-top:1px solid var(--border);display:flex;align-items:
 <!-- FOOTER -->
 <footer>
   <div>
-    <div class="footer-brand" id="footer-name">NAGOLE SPORTS LOUNGE</div>
+    <div class="footer-brand" id="footer-name">METRO SPORTS LOUNGE</div>
     <div class="footer-sub">Open daily 8 AM – 11 PM &nbsp;|&nbsp; Nagole, Hyderabad</div>
   </div>
   <div class="footer-links">
@@ -306,7 +306,7 @@ function populatePage() {
   if (!settingsData) return;
 
   // Arena name
-  var name = settingsData.arenaName || "Nagole Sports Lounge";
+  var name = settingsData.arenaName || "Metro Sports Lounge";
   document.getElementById("nav-name").textContent   = name.toUpperCase();
   document.getElementById("footer-name").textContent = name.toUpperCase();
   document.title = name + " — Book a Slot";
@@ -482,7 +482,7 @@ function submitBooking() {
       esc(b.date)+" at "+esc(b.timeSlot)+"<br>"+
       esc(b.group)+"<br>"+
       "Payment: "+esc(b.pay)+"<br><br>"+
-      "See you at Nagole Sports Lounge!";
+      "See you at Metro Sports Lounge!";
   })
   .catch(function(e){
     showErr(e.message || "Something went wrong. Please try again.");

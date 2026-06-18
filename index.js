@@ -17,6 +17,7 @@ app.use(express.json());
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || "";
+const BASE_URL   = process.env.BASE_URL   || "https://metrosports.onrender.com";
 const JWT_SECRET  = process.env.JWT_SECRET  || "msl-change-me";
 const ADMIN_USER  = process.env.ADMIN_USER  || "admin";
 const ADMIN_PASS  = process.env.ADMIN_PASS  || "msl@1234";
@@ -246,28 +247,27 @@ function sess(sid) {
 // Docs: https://developer.exotel.com/exoml/
 
 function exoSay(text) {
-  // Exotel Play for TTS
   return "<Play>" + xmlEsc(text) + "</Play>";
 }
 
 function exoGather(text, lang, numDigits, finishOnKey) {
-  // Exotel uses <GetDigits> for DTMF collection
-  numDigits  = numDigits  || 1;
-  finishOnKey= finishOnKey|| "#";
+  numDigits   = numDigits   || 1;
+  finishOnKey = finishOnKey || "#";
+  var action  = BASE_URL + "/exotel/respond";
+  var redirect= BASE_URL + "/exotel/noinput";
   return (
-    "<GetDigits timeout=\"15\" numDigits=\"" + numDigits + "\" finishOnKey=\"" + finishOnKey + "\" action=\"/exotel/respond\" method=\"POST\">" +
+    '<GetDigits timeout="15" numDigits="' + numDigits + '" finishOnKey="' + finishOnKey + '" action="' + action + '" method="POST">' +
     "<Play>" + xmlEsc(text) + "</Play>" +
     "</GetDigits>" +
-    // Fallback if no input — redirect back
-    "<Redirect>/exotel/noinput</Redirect>"
+    "<Redirect>" + redirect + "</Redirect>"
   );
 }
 
 function exoSpeechGather(text) {
-  // Exotel speech recognition via <Record> then transcribe — simpler approach:
-  // Use Record for name, then redirect with recording URL
+  var action   = BASE_URL + "/exotel/name";
+  var callback = BASE_URL + "/exotel/transcribe";
   return (
-    "<Record action=\"/exotel/name\" method=\"POST\" maxLength=\"5\" finishOnKey=\"#\" playBeep=\"true\" transcribe=\"true\" transcribeCallback=\"/exotel/transcribe\">" +
+    '<Record action="' + action + '" method="POST" maxLength="5" finishOnKey="#" playBeep="true" transcribe="true" transcribeCallback="' + callback + '">' +
     "<Play>" + xmlEsc(text) + "</Play>" +
     "</Record>"
   );
@@ -292,33 +292,30 @@ function sendExoml(res, body) {
 
 // ── Exotel IVR Routes ─────────────────────────────────────────────────────────
 
-// Incoming call
-app.post("/exotel/incoming", (req, res) => {
-  const sid = req.body.CallSid || req.body.CallUUID || req.body.CallGuid || "unknown";
-  sessions[sid] = { step:"lang", lang:"en" };
-  sendExoml(res, exoGather(script("en").welcome, "en", 1));
-});
-
-// Also accept GET (Exotel sometimes sends GET for incoming)
-app.get("/exotel/incoming", (req, res) => {
-  const sid = req.query.CallSid || req.query.CallUUID || "unknown";
+// Incoming call — accept GET + POST, log all params Exotel sends
+app.all("/exotel/incoming", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  console.log("[EXOTEL INCOMING] method=" + req.method + " params=" + JSON.stringify(params));
+  const sid = params.CallSid || params.CallUUID || params.CallGuid || params.call_sid || params.CallFrom || "unknown";
   sessions[sid] = { step:"lang", lang:"en" };
   sendExoml(res, exoGather(script("en").welcome, "en", 1));
 });
 
 // No input fallback
 app.all("/exotel/noinput", (req, res) => {
-  const sid = req.body?.CallSid || req.query?.CallSid || "unknown";
+  const params = req.method === "POST" ? req.body : req.query;
+  const sid = params.CallSid || params.CallUUID || params.call_sid || "unknown";
   const s   = sess(sid);
   const lc  = script(s.lang);
   sendExoml(res, exoGather(lc.invalid + script("en").welcome, s.lang, 1));
 });
 
-// Main response handler
+// Main response handler — log everything
 app.all("/exotel/respond", async (req, res) => {
   const body   = req.method === "POST" ? req.body : req.query;
-  const sid    = body.CallSid || body.CallUUID || body.CallGuid || "unknown";
-  const digits = (body.digits || body.Digits || "").trim();
+  console.log("[EXOTEL RESPOND] method=" + req.method + " params=" + JSON.stringify(body));
+  const sid    = body.CallSid || body.CallUUID || body.CallGuid || body.call_sid || "unknown";
+  const digits = (body.digits || body.Digits || body.digit || "").trim();
   const s      = sess(sid);
   const lc     = script(s.lang);
 

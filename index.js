@@ -139,21 +139,18 @@ async function getAvailableSlots(gameId, dateKey) {
   const todayKey = new Date().toISOString().split("T")[0];
   const nowHour  = new Date().getHours();
 
-  // Fetch all confirmed bookings for this game+date from DB
-  const existing = await Booking.find({ gameId, dateKey, status:"confirmed" });
+  // ONE query for this game+date
+  const existing = await Booking.find({ gameId, dateKey, status:"confirmed" }).lean();
+  const countMap = {};
+  for (const b of existing) {
+    countMap[b.timeSlot] = (countMap[b.timeSlot] || 0) + 1;
+  }
 
   return allTimeSlots().filter(slot => {
     const h = slotToHour(slot);
-
-    // Next-hour logic: if today, only slots STRICTLY after current hour
     if (dateKey === todayKey && h <= nowHour) return false;
-
-    // Admin-blocked slot
     if (SETTINGS.blockedSlots.some(b => b.gameId===gameId && b.dateKey===dateKey && b.timeSlot===slot)) return false;
-
-    // Capacity check
-    const booked = existing.filter(b => b.timeSlot === slot).length;
-    return booked < game.courts;
+    return (countMap[slot] || 0) < game.courts;
   });
 }
 
@@ -516,22 +513,41 @@ app.get("/api/stats", auth, async (req, res) => {
 });
 
 app.get("/api/availability", auth, async (req, res) => {
-  const dates = getDates();
-  const slots = allTimeSlots();
-  const grid  = [];
+  const dates    = getDates();
+  const slots    = allTimeSlots();
+  const dateKeys = dates.map(d => d.key);
+
+  // ONE query — fetch all confirmed bookings for next 7 days
+  const allBookings = await Booking.find({
+    dateKey: { $in: dateKeys },
+    status:  "confirmed",
+  }).lean();
+
+  // Build a lookup map: "gameId|dateKey|timeSlot" -> count
+  const countMap = {};
+  for (const b of allBookings) {
+    const key = b.gameId + "|" + b.dateKey + "|" + b.timeSlot;
+    countMap[key] = (countMap[key] || 0) + 1;
+  }
+
+  const grid = [];
   for (const game of SETTINGS.games) {
     for (const date of dates) {
       for (const slot of slots) {
-        const booked  = await bookedCount(game.id, date.key, slot);
-        const blocked = SETTINGS.blockedSlots.some(b => b.gameId===game.id && b.dateKey===date.key && b.timeSlot===slot)
+        const key     = game.id + "|" + date.key + "|" + slot;
+        const booked  = countMap[key] || 0;
+        const blocked = SETTINGS.blockedSlots.some(b =>
+                          b.gameId===game.id && b.dateKey===date.key && b.timeSlot===slot)
                      || SETTINGS.blockedDates.includes(date.key);
-        grid.push({ gameId:game.id, gameName:game.name, gameMax:game.courts,
-          dateKey:date.key, dateLabel:date.label, timeSlot:slot,
-          booked, available:game.courts - booked, blocked, active:game.active });
+        grid.push({
+          gameId: game.id, gameName: game.name, gameMax: game.courts,
+          dateKey: date.key, dateLabel: date.label, timeSlot: slot,
+          booked, available: game.courts - booked, blocked, active: game.active,
+        });
       }
     }
   }
-  res.json({ games:SETTINGS.games, dates, timeSlots:slots, grid });
+  res.json({ games: SETTINGS.games, dates, timeSlots: slots, grid });
 });
 
 app.get("/api/settings", auth, (req, res) => res.json(SETTINGS));
@@ -601,23 +617,52 @@ app.delete("/api/settings/block-slot", auth, async (req, res) => {
 // ── Public API (landing page) ─────────────────────────────────────────────────
 
 app.get("/api/public/data", async (req, res) => {
-  const dates = getDates();
-  const slots = allTimeSlots();
-  const grid  = [];
+  const dates    = getDates();
+  const slots    = allTimeSlots();
+  const dateKeys = dates.map(d => d.key);
+
+  // ONE query for all bookings in next 7 days
+  const allBookings = await Booking.find({
+    dateKey: { $in: dateKeys },
+    status:  "confirmed",
+  }).lean();
+
+  // Build count map
+  const countMap = {};
+  for (const b of allBookings) {
+    const key = b.gameId + "|" + b.dateKey + "|" + b.timeSlot;
+    countMap[key] = (countMap[key] || 0) + 1;
+  }
+
+  const grid = [];
   for (const game of SETTINGS.games) {
     for (const date of dates) {
       for (const slot of slots) {
-        const booked  = await bookedCount(game.id, date.key, slot);
-        const blocked = SETTINGS.blockedSlots.some(b => b.gameId===game.id && b.dateKey===date.key && b.timeSlot===slot)
+        const key     = game.id + "|" + date.key + "|" + slot;
+        const booked  = countMap[key] || 0;
+        const blocked = SETTINGS.blockedSlots.some(b =>
+                          b.gameId===game.id && b.dateKey===date.key && b.timeSlot===slot)
                      || SETTINGS.blockedDates.includes(date.key);
-        grid.push({ gameId:game.id, dateKey:date.key, timeSlot:slot,
-          available:game.courts - booked, blocked, active:game.active });
+        grid.push({
+          gameId:    game.id,
+          dateKey:   date.key,
+          timeSlot:  slot,
+          available: game.courts - booked,
+          blocked,
+          active:    game.active,
+        });
       }
     }
   }
   res.json({
-    settings: { arenaName:SETTINGS.arenaName, openHour:SETTINGS.openHour, closeHour:SETTINGS.closeHour, games:SETTINGS.games, blockedDates:SETTINGS.blockedDates },
-    availability: { grid, dates, timeSlots:slots },
+    settings: {
+      arenaName:    SETTINGS.arenaName,
+      openHour:     SETTINGS.openHour,
+      closeHour:    SETTINGS.closeHour,
+      games:        SETTINGS.games,
+      blockedDates: SETTINGS.blockedDates,
+    },
+    availability: { grid, dates, timeSlots: slots },
   });
 });
 

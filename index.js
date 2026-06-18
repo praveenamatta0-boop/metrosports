@@ -296,7 +296,18 @@ function sendExoml(res, body) {
 app.all("/exotel/incoming", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
   console.log("[EXOTEL INCOMING] method=" + req.method + " params=" + JSON.stringify(params));
-  const sid = params.CallSid || params.CallUUID || params.CallGuid || params.call_sid || params.CallFrom || "unknown";
+
+  const callType = params.CallType || params.call_type || "";
+
+  // Exotel fires webhook twice: "call-attempt" (ringing) and "call-connected" (answered)
+  // Only respond with IVR when call is actually connected
+  if (callType === "call-attempt") {
+    console.log("[EXOTEL] Ignoring call-attempt, waiting for call-connected");
+    res.status(200).send("ok");
+    return;
+  }
+
+  const sid = params.CallSid || params.CallUUID || params.CallGuid || params.call_sid || "unknown";
   sessions[sid] = { step:"lang", lang:"en" };
   sendExoml(res, exoGather(script("en").welcome, "en", 1));
 });

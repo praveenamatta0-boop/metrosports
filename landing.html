@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Nagole Sports Lounge — Book a Slot</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#07080d;
+  --card:#12141c;
+  --border:#1e2030;
+  --orange:#ff5c1a;
+  --orange-dim:#ff5c1a22;
+  --white:#f5f0e8;
+  --muted:#6b6e7e;
+  --success:#2ecc71;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--black);color:var(--white);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--black)}::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:2px}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 40px;height:64px;display:flex;align-items:center;justify-content:space-between;background:rgba(7,8,13,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-brand{display:flex;align-items:center;gap:12px}
+.nav-logo{width:36px;height:36px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.nav-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;letter-spacing:.5px}
+.nav-cta{background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-family:'Inter',sans-serif;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;transition:background .15s}
+.nav-cta:hover{background:#e84d0e}
+
+/* HERO */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:100px 40px 60px;position:relative;overflow:hidden}
+.hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 60% 40%, #ff5c1a14 0%, transparent 70%);pointer-events:none}
+.hero-eyebrow{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:4px;color:var(--orange);text-transform:uppercase;margin-bottom:24px}
+.hero-headline{font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:900;font-size:clamp(56px,10vw,120px);line-height:.92;text-transform:uppercase;color:var(--white);max-width:900px}
+.hero-headline span{color:var(--orange)}
+.hero-slash{display:block;width:clamp(80px,14vw,160px);height:6px;background:var(--orange);margin:28px 0;border-radius:2px;transform:skewX(-15deg)}
+.hero-sub{font-size:clamp(15px,2vw,18px);color:var(--muted);max-width:440px;line-height:1.6;margin-bottom:40px}
+.hero-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.btn-main{background:var(--orange);color:#fff;border:none;border-radius:10px;padding:16px 36px;font-family:'Inter',sans-serif;font-weight:600;font-size:16px;cursor:pointer;text-decoration:none;transition:all .15s;display:inline-block}
+.btn-main:hover{background:#e84d0e;transform:translateY(-1px)}
+.btn-ghost{background:none;color:var(--white);border:1px solid var(--border);border-radius:10px;padding:15px 28px;font-family:'Inter',sans-serif;font-weight:500;font-size:15px;cursor:pointer;text-decoration:none;transition:all .15s;display:inline-block}
+.btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
+.hero-stats{display:flex;gap:40px;margin-top:60px;flex-wrap:wrap}
+.hstat-val{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:42px;color:var(--orange);line-height:1}
+.hstat-lbl{font-size:12px;color:var(--muted);font-weight:500;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+
+/* GAMES SECTION */
+.section{padding:80px 40px}
+.section-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:4px;color:var(--orange);text-transform:uppercase;margin-bottom:12px}
+.section-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(36px,5vw,56px);line-height:1;text-transform:uppercase;margin-bottom:48px}
+.games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.game-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 24px;transition:all .2s;position:relative;overflow:hidden}
+.game-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top left, var(--orange-dim), transparent 60%);opacity:0;transition:opacity .2s}
+.game-card:hover{border-color:var(--orange);transform:translateY(-3px)}
+.game-card:hover::before{opacity:1}
+.game-emoji{font-size:40px;margin-bottom:16px;display:block}
+.game-name{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:22px;text-transform:uppercase;margin-bottom:6px}
+.game-rate{font-size:13px;color:var(--orange);font-weight:600;margin-bottom:8px}
+.game-courts{font-size:12px;color:var(--muted)}
+
+/* BOOKING FORM SECTION */
+.form-section{padding:80px 40px;background:var(--card);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.form-wrap{max-width:720px;margin:0 auto}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.form-group{display:flex;flex-direction:column;gap:8px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.form-inp{background:#0e0f18;border:1px solid var(--border);border-radius:10px;padding:14px 16px;color:var(--white);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:border .15s;width:100%;appearance:none;-webkit-appearance:none}
+.form-inp:focus{border-color:var(--orange)}
+.form-inp option{background:#0e0f18}
+.form-inp::placeholder{color:var(--muted)}
+.form-submit{width:100%;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:18px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:22px;text-transform:uppercase;letter-spacing:1px;cursor:pointer;transition:all .15s;margin-top:8px}
+.form-submit:hover{background:#e84d0e;transform:translateY(-1px)}
+.form-submit:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.form-note{font-size:12px;color:var(--muted);text-align:center;margin-top:12px}
+
+/* Success */
+.success-box{display:none;background:#0a1a0e;border:1px solid #2ecc7140;border-radius:16px;padding:40px;text-align:center;margin-top:20px}
+.success-icon{font-size:56px;margin-bottom:16px}
+.success-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:36px;text-transform:uppercase;color:var(--success);margin-bottom:8px}
+.success-id{font-size:14px;color:var(--muted);margin-bottom:4px}
+.success-idbig{font-family:'Inter',sans-serif;font-weight:700;font-size:22px;color:var(--white);margin-bottom:20px;font-variant-numeric:tabular-nums}
+.success-detail{font-size:14px;color:var(--muted);line-height:1.8}
+.success-again{background:none;border:1px solid var(--border);border-radius:10px;padding:12px 28px;color:var(--white);font-family:'Inter',sans-serif;font-size:14px;font-weight:500;cursor:pointer;margin-top:24px;transition:all .15s}
+.success-again:hover{border-color:var(--orange);color:var(--orange)}
+
+/* ERROR */
+.form-error{background:#1a0a0a;border:1px solid #d85d5d40;border-radius:10px;padding:14px 16px;color:#d85d5d;font-size:14px;margin-top:8px;display:none}
+
+/* HOW IT WORKS */
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:800px}
+.how-card{display:flex;gap:18px;align-items:flex-start}
+.how-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;color:var(--orange);line-height:1;flex-shrink:0;opacity:.6}
+.how-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;text-transform:uppercase;margin-bottom:6px}
+.how-text{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* FOOTER */
+footer{padding:40px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-brand{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px}
+.footer-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.footer-links{display:flex;gap:20px}
+.footer-link{font-size:13px;color:var(--muted);text-decoration:none;transition:color .15s}
+.footer-link:hover{color:var(--orange)}
+
+/* Responsive */
+@media(max-width:768px){
+  nav{padding:0 20px}
+  .hero{padding:90px 20px 50px}
+  .section{padding:60px 20px}
+  .form-section{padding:60px 20px}
+  .form-grid{grid-template-columns:1fr}
+  .form-group.full{grid-column:1}
+  .how-grid{grid-template-columns:1fr}
+  .hero-stats{gap:24px}
+  footer{padding:28px 20px}
+}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{animation:fadeUp .5s ease forwards}
+.delay-1{animation-delay:.1s;opacity:0}
+.delay-2{animation-delay:.2s;opacity:0}
+.delay-3{animation-delay:.3s;opacity:0}
+.delay-4{animation-delay:.4s;opacity:0}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">&#127967;</div>
+    <div class="nav-name" id="nav-name">NAGOLE SPORTS LOUNGE</div>
+  </div>
+  <a href="#book" class="nav-cta">Book Now</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-bg"></div>
+  <div class="hero-eyebrow fade-up">Nagole, Hyderabad</div>
+  <h1 class="hero-headline fade-up delay-1">
+    PLAY<br><span>HARDER.</span><br>BOOK<br>FASTER.
+  </h1>
+  <div class="hero-slash fade-up delay-2"></div>
+  <p class="hero-sub fade-up delay-2">5 games. Real courts. Hourly bookings — online or by phone. No waiting, no hassle.</p>
+  <div class="hero-actions fade-up delay-3">
+    <a href="#book" class="btn-main">Book a Slot</a>
+    <a href="#games" class="btn-ghost">See Games &amp; Prices</a>
+  </div>
+  <div class="hero-stats fade-up delay-4">
+    <div><div class="hstat-val" id="stat-games">5</div><div class="hstat-lbl">Games</div></div>
+    <div><div class="hstat-val">8AM</div><div class="hstat-lbl">Opens</div></div>
+    <div><div class="hstat-val">11PM</div><div class="hstat-lbl">Closes</div></div>
+    <div><div class="hstat-val">&#8377;250</div><div class="hstat-lbl">Starting from</div></div>
+  </div>
+</section>
+
+<!-- GAMES -->
+<section class="section" id="games">
+  <div class="section-label">What We Offer</div>
+  <div class="section-title">Pick Your Game</div>
+  <div class="games-grid" id="games-grid">
+    <!-- populated by JS -->
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" style="padding-top:0">
+  <div class="section-label">How It Works</div>
+  <div class="section-title">3 Steps to Play</div>
+  <div class="how-grid">
+    <div class="how-card">
+      <div class="how-num">1</div>
+      <div><div class="how-title">Choose Your Game</div><div class="how-text">Pick from pool, cricket, volleyball, table tennis, badminton and more.</div></div>
+    </div>
+    <div class="how-card">
+      <div class="how-num">2</div>
+      <div><div class="how-title">Fill the Form</div><div class="how-text">Select your date, time, and group size. Takes under a minute.</div></div>
+    </div>
+    <div class="how-card">
+      <div class="how-num">3</div>
+      <div><div class="how-title">Show Up &amp; Play</div><div class="how-text">Your slot is confirmed instantly. Just arrive and enjoy.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- BOOKING FORM -->
+<section class="form-section" id="book">
+  <div class="form-wrap">
+    <div class="section-label">Online Booking</div>
+    <div class="section-title" style="margin-bottom:36px">Reserve Your Slot</div>
+
+    <!-- Form -->
+    <div id="booking-form-wrap">
+      <div class="form-grid" id="booking-form">
+
+        <div class="form-group">
+          <label class="form-label">Your Name *</label>
+          <input class="form-inp" id="f-name" type="text" placeholder="Enter your full name"/>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mobile Number *</label>
+          <input class="form-inp" id="f-phone" type="tel" placeholder="10-digit mobile number" maxlength="10"/>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Select Game *</label>
+          <select class="form-inp" id="f-game">
+            <option value="">-- Choose a game --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Group Size *</label>
+          <select class="form-inp" id="f-group">
+            <option value="">-- How many people? --</option>
+            <option value="1-2 people">1–2 people</option>
+            <option value="3-5 people">3–5 people</option>
+            <option value="6-10 people">6–10 people</option>
+            <option value="11-20 people">11–20 people</option>
+            <option value="20+ people">More than 20</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Date *</label>
+          <select class="form-inp" id="f-date">
+            <option value="">-- Select date --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Time Slot *</label>
+          <select class="form-inp" id="f-time">
+            <option value="">-- Select time --</option>
+          </select>
+        </div>
+
+        <div class="form-group full">
+          <label class="form-label">Payment Method *</label>
+          <select class="form-inp" id="f-pay">
+            <option value="">-- How will you pay? --</option>
+            <option value="Cash">Cash</option>
+            <option value="Card">Card</option>
+            <option value="UPI">UPI</option>
+          </select>
+        </div>
+
+        <div class="form-group full">
+          <div class="form-error" id="form-err">Please fill all required fields correctly.</div>
+          <button class="form-submit" id="submit-btn" onclick="submitBooking()">Confirm Booking</button>
+          <div class="form-note">Your slot will be reserved instantly. Pay on arrival.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Success -->
+    <div class="success-box" id="success-box">
+      <div class="success-icon">&#127881;</div>
+      <div class="success-title">Booking Confirmed!</div>
+      <div class="success-id">Your Booking ID</div>
+      <div class="success-idbig" id="suc-id"></div>
+      <div class="success-detail" id="suc-detail"></div>
+      <button class="success-again" onclick="resetForm()">Book Another Slot</button>
+    </div>
+
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-brand" id="footer-name">NAGOLE SPORTS LOUNGE</div>
+    <div class="footer-sub">Open daily 8 AM – 11 PM &nbsp;|&nbsp; Nagole, Hyderabad</div>
+  </div>
+  <div class="footer-links">
+    <a href="#games" class="footer-link">Games</a>
+    <a href="#book"  class="footer-link">Book Now</a>
+    <a href="tel:+91" class="footer-link">Call Us</a>
+  </div>
+</footer>
+
+<script>
+var settingsData = null;
+var availData    = null;
+
+// Load settings + availability (no auth needed for public endpoints)
+function loadPublicData() {
+  // We expose a public endpoint for landing page data
+  fetch("/api/public/data")
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    settingsData = d.settings;
+    availData    = d.availability;
+    populatePage();
+  })
+  .catch(function(e){ console.error("Could not load data", e); populateFallback(); });
+}
+
+function populatePage() {
+  if (!settingsData) return;
+
+  // Arena name
+  var name = settingsData.arenaName || "Nagole Sports Lounge";
+  document.getElementById("nav-name").textContent   = name.toUpperCase();
+  document.getElementById("footer-name").textContent = name.toUpperCase();
+  document.title = name + " — Book a Slot";
+
+  // Games grid
+  var games = (settingsData.games || []).filter(function(g){ return g.active; });
+  document.getElementById("stat-games").textContent = games.length;
+  var grid = document.getElementById("games-grid");
+  grid.innerHTML = "";
+  var emojis = {pool:"&#127921;",cricket:"&#127959;",volleyball:"&#127952;",table_tennis:"&#127955;",badminton:"&#127992;"};
+  games.forEach(function(g){
+    var div = document.createElement("div");
+    div.className = "game-card";
+    div.innerHTML =
+      '<span class="game-emoji">'+(emojis[g.id]||"&#127918;")+'</span>'+
+      '<div class="game-name">'+esc(g.name)+'</div>'+
+      '<div class="game-rate">&#8377;'+g.rate+' / hour</div>'+
+      '<div class="game-courts">'+g.courts+' court'+(g.courts>1?"s":"")+'</div>';
+    div.onclick = function(){ document.getElementById("f-game").value = g.id; document.getElementById("book").scrollIntoView({behavior:"smooth"}); };
+    grid.appendChild(div);
+  });
+
+  // Game dropdown
+  var fgame = document.getElementById("f-game");
+  fgame.innerHTML = '<option value="">-- Choose a game --</option>';
+  games.forEach(function(g){
+    var opt = document.createElement("option");
+    opt.value = g.id; opt.textContent = (emojis[g.id]?" ":"") + g.name + " — ₹"+g.rate+"/hr";
+    opt.dataset.name = g.name;
+    fgame.appendChild(opt);
+  });
+
+  // Date dropdown — next 7 days
+  populateDates();
+
+  // When game or date changes, update available time slots
+  document.getElementById("f-game").onchange  = updateSlots;
+  document.getElementById("f-date").onchange  = updateSlots;
+}
+
+function populateDates() {
+  var fdate = document.getElementById("f-date");
+  fdate.innerHTML = '<option value="">-- Select date --</option>';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date();
+    d.setDate(d.getDate() + i);
+    var key   = d.toISOString().split("T")[0];
+    var label = d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"});
+    // Skip blocked dates
+    if (settingsData && settingsData.blockedDates && settingsData.blockedDates.includes(key)) continue;
+    var opt = document.createElement("option");
+    opt.value = key; opt.textContent = label;
+    fdate.appendChild(opt);
+  }
+}
+
+function updateSlots() {
+  var gameId  = document.getElementById("f-game").value;
+  var dateKey = document.getElementById("f-date").value;
+  var ftime   = document.getElementById("f-time");
+  ftime.innerHTML = '<option value="">-- Select time --</option>';
+  if (!gameId || !dateKey || !availData) return;
+
+  var nowHour   = new Date().getHours();
+  var todayKey  = new Date().toISOString().split("T")[0];
+
+  availData.grid.forEach(function(row){
+    if (row.gameId !== gameId || row.dateKey !== dateKey) return;
+    if (row.blocked) return;
+    if (row.available <= 0) return;
+    // Next-hour logic
+    if (dateKey === todayKey) {
+      var h = slotToHour(row.timeSlot);
+      if (h <= nowHour) return;
+    }
+    var opt = document.createElement("option");
+    opt.value = row.timeSlot;
+    opt.textContent = row.timeSlot + " (" + row.available + " slot"+(row.available>1?"s":"")+" left)";
+    ftime.appendChild(opt);
+  });
+
+  if (ftime.options.length === 1) {
+    ftime.innerHTML = '<option value="">No slots available — try another date</option>';
+  }
+}
+
+function slotToHour(slot) {
+  var m = slot.match(/(\d+)\s*(AM|PM)/);
+  if (!m) return 0;
+  var h = parseInt(m[1]);
+  if (m[2]==="PM" && h!==12) h+=12;
+  if (m[2]==="AM" && h===12) h=0;
+  return h;
+}
+
+function populateFallback() {
+  // If API fails, show static game list
+  var games = [
+    {id:"pool",name:"Pool Table",rate:300,courts:4},
+    {id:"cricket",name:"Cricket Pitch",rate:800,courts:2},
+    {id:"volleyball",name:"Beach Volleyball",rate:500,courts:2},
+    {id:"table_tennis",name:"Table Tennis",rate:250,courts:3},
+    {id:"badminton",name:"Badminton",rate:400,courts:2},
+  ];
+  var emojis = {pool:"&#127921;",cricket:"&#127959;",volleyball:"&#127952;",table_tennis:"&#127955;",badminton:"&#127992;"};
+  var grid = document.getElementById("games-grid");
+  grid.innerHTML="";
+  games.forEach(function(g){
+    var div=document.createElement("div");div.className="game-card";
+    div.innerHTML='<span class="game-emoji">'+(emojis[g.id]||"&#127918;")+'</span><div class="game-name">'+g.name+'</div><div class="game-rate">&#8377;'+g.rate+'/hr</div><div class="game-courts">'+g.courts+' courts</div>';
+    grid.appendChild(div);
+  });
+  var fgame=document.getElementById("f-game");
+  fgame.innerHTML='<option value="">-- Choose a game --</option>';
+  games.forEach(function(g){var o=document.createElement("option");o.value=g.id;o.textContent=g.name+" — ₹"+g.rate+"/hr";o.dataset.name=g.name;fgame.appendChild(o);});
+  populateDates();
+  // Static time slots
+  var ftime=document.getElementById("f-time");
+  ftime.innerHTML='<option value="">-- Select time --</option>';
+  ["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM","7 PM","8 PM","9 PM","10 PM"].forEach(function(s){var o=document.createElement("option");o.value=s;o.textContent=s;ftime.appendChild(o);});
+}
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+function submitBooking() {
+  var name    = document.getElementById("f-name").value.trim();
+  var phone   = document.getElementById("f-phone").value.trim();
+  var gameId  = document.getElementById("f-game").value;
+  var gameEl  = document.getElementById("f-game");
+  var gameName= gameEl.options[gameEl.selectedIndex]?.dataset?.name || gameId;
+  var group   = document.getElementById("f-group").value;
+  var dateKey = document.getElementById("f-date").value;
+  var dateLbl = document.getElementById("f-date").options[document.getElementById("f-date").selectedIndex]?.text || dateKey;
+  var timeSlot= document.getElementById("f-time").value;
+  var pay     = document.getElementById("f-pay").value;
+  var err     = document.getElementById("form-err");
+
+  err.style.display = "none";
+
+  // Validate
+  if (!name || name.length < 2) { showErr("Please enter your name."); return; }
+  if (!phone.match(/^[6-9]\d{9}$/)) { showErr("Please enter a valid 10-digit mobile number."); return; }
+  if (!gameId) { showErr("Please select a game."); return; }
+  if (!group)  { showErr("Please select group size."); return; }
+  if (!dateKey){ showErr("Please select a date."); return; }
+  if (!timeSlot){ showErr("Please select a time slot."); return; }
+  if (!pay)    { showErr("Please select a payment method."); return; }
+
+  var btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Booking...";
+
+  fetch("/api/public/booking", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name, phone, gameId, gameName, group,
+      dateKey, date: dateLbl, timeSlot, pay, lang:"web"
+    })
+  })
+  .then(function(r){
+    if (!r.ok) return r.json().then(function(d){ throw new Error(d.error||"Booking failed"); });
+    return r.json();
+  })
+  .then(function(b){
+    // Show success
+    document.getElementById("booking-form-wrap").style.display = "none";
+    var sbox = document.getElementById("success-box");
+    sbox.style.display = "block";
+    document.getElementById("suc-id").textContent = "#" + b.id;
+    document.getElementById("suc-detail").innerHTML =
+      "<strong>"+esc(b.gameName)+"</strong><br>"+
+      esc(b.date)+" at "+esc(b.timeSlot)+"<br>"+
+      esc(b.group)+"<br>"+
+      "Payment: "+esc(b.pay)+"<br><br>"+
+      "See you at Nagole Sports Lounge!";
+  })
+  .catch(function(e){
+    showErr(e.message || "Something went wrong. Please try again.");
+    btn.disabled = false;
+    btn.textContent = "Confirm Booking";
+  });
+}
+
+function showErr(msg) {
+  var err = document.getElementById("form-err");
+  err.textContent = msg;
+  err.style.display = "block";
+}
+
+function resetForm() {
+  document.getElementById("f-name").value  = "";
+  document.getElementById("f-phone").value = "";
+  document.getElementById("f-game").value  = "";
+  document.getElementById("f-group").value = "";
+  document.getElementById("f-date").value  = "";
+  document.getElementById("f-time").value  = "";
+  document.getElementById("f-pay").value   = "";
+  document.getElementById("form-err").style.display = "none";
+  document.getElementById("success-box").style.display = "none";
+  document.getElementById("booking-form-wrap").style.display = "block";
+  document.getElementById("submit-btn").disabled = false;
+  document.getElementById("submit-btn").textContent = "Confirm Booking";
+  updateSlots();
+}
+
+loadPublicData();
+</script>
+</body>
+</html>

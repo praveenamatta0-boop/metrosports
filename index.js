@@ -444,8 +444,92 @@ app.delete("/api/settings/block-slot", auth, (req,res) => {
   res.json(SETTINGS.blockedSlots);
 });
 
+// ── Public API (no auth — for landing page) ───────────────────────────────────
+
+// Public data: settings + availability grid (no sensitive booking info)
+app.get("/api/public/data", (req,res) => {
+  const dates = getDates();
+  const slots = allTimeSlots();
+  const grid  = [];
+  for (const game of SETTINGS.games) {
+    for (const date of dates) {
+      for (const slot of slots) {
+        const booked  = bookedCount(game.id, date.key, slot);
+        const blocked = SETTINGS.blockedSlots.some(b => b.gameId===game.id && b.dateKey===date.key && b.timeSlot===slot)
+                     || SETTINGS.blockedDates.includes(date.key);
+        grid.push({
+          gameId:    game.id,
+          dateKey:   date.key,
+          timeSlot:  slot,
+          available: game.courts - booked,
+          blocked,
+          active:    game.active,
+        });
+      }
+    }
+  }
+  res.json({
+    settings: {
+      arenaName:    SETTINGS.arenaName,
+      openHour:     SETTINGS.openHour,
+      closeHour:    SETTINGS.closeHour,
+      games:        SETTINGS.games,
+      blockedDates: SETTINGS.blockedDates,
+    },
+    availability: { grid, dates, timeSlots: slots },
+  });
+});
+
+// Public booking submission
+app.post("/api/public/booking", (req,res) => {
+  const { name, phone, gameId, gameName, group, dateKey, date, timeSlot, pay } = req.body;
+
+  // Validate
+  if (!name || !phone || !gameId || !group || !dateKey || !timeSlot || !pay)
+    return res.status(400).json({ error:"All fields are required." });
+  if (!/^[6-9]\d{9}$/.test(phone))
+    return res.status(400).json({ error:"Invalid phone number." });
+
+  const game = SETTINGS.games.find(g => g.id === gameId);
+  if (!game || !game.active)
+    return res.status(400).json({ error:"Game not available." });
+
+  // Check date not blocked
+  if (SETTINGS.blockedDates.includes(dateKey))
+    return res.status(400).json({ error:"Bookings are closed on this date." });
+
+  // Check slot not blocked
+  if (SETTINGS.blockedSlots.some(b => b.gameId===gameId && b.dateKey===dateKey && b.timeSlot===timeSlot))
+    return res.status(400).json({ error:"This slot is closed for bookings." });
+
+  // Check availability
+  const available = getAvailableSlots(gameId, dateKey);
+  if (!available.includes(timeSlot))
+    return res.status(400).json({ error:"This slot is no longer available. Please choose another." });
+
+  const b = {
+    id:        genId(),
+    gameId,
+    gameName:  gameName || game.name,
+    gameRate:  game.rate,
+    dateKey,
+    date,
+    timeSlot,
+    group,
+    name,
+    phone,
+    pay,
+    lang:      "web",
+    status:    "confirmed",
+    createdAt: new Date().toISOString(),
+  };
+  bookings.push(b);
+  res.json(b);
+});
+
+// Dashboard + Landing page
 app.get("/dashboard", (req,res) => res.sendFile(path.join(__dirname,"dashboard.html")));
-app.get("/", (req,res) => res.send(SETTINGS.arenaName+" — Aria v9 | /dashboard"));
+app.get("/", (req,res) => res.sendFile(path.join(__dirname,"landing.html")));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(SETTINGS.arenaName+" on port "+PORT));

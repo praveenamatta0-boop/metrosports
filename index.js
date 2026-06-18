@@ -298,17 +298,14 @@ app.all("/exotel/incoming", (req, res) => {
   console.log("[EXOTEL INCOMING] method=" + req.method + " params=" + JSON.stringify(params));
 
   const callType = params.CallType || params.call_type || "";
-
-  // Exotel fires webhook twice: "call-attempt" (ringing) and "call-connected" (answered)
-  // Only respond with IVR when call is actually connected
-  if (callType === "call-attempt") {
-    console.log("[EXOTEL] Ignoring call-attempt, waiting for call-connected");
-    res.status(200).send("ok");
-    return;
-  }
-
   const sid = params.CallSid || params.CallUUID || params.CallGuid || params.call_sid || "unknown";
-  sessions[sid] = { step:"lang", lang:"en" };
+  console.log("[EXOTEL] CallType=" + callType + " sid=" + sid);
+
+  // With Gather applet, Exotel always sends call-attempt — just respond with IVR every time
+  // Deduplicate: if session already exists and is past lang step, don't reset it
+  if (!sessions[sid] || sessions[sid].step === "lang") {
+    sessions[sid] = { step:"lang", lang:"en" };
+  }
   sendExoml(res, exoGather(script("en").welcome, "en", 1));
 });
 

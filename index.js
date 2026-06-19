@@ -314,7 +314,7 @@ function repeatStep(res) { res.status(302).send("repeat"); }
 // Max digits: 1
 app.all("/exotel/step/lang", (req, res) => {
   const params  = req.method === "POST" ? req.body : req.query;
-  const digits  = (params.digits || params.Digits || "").trim();
+  const digits  = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[LANG] sid=" + sid + " digits=" + digits);
 

@@ -177,7 +177,7 @@ function script(lang) {
   const S = {
     en: {
       code:"en-IN", voice:"Polly.Aditi",
-      welcome:  "Welcome to " + name + ". To book online, press 1, and I will text you the link. To continue booking on this call, press 2.",
+      welcome:  "Welcome to " + name + ". You can book online. Press 1, and we will text you the link. Or, continue booking on this call. Press 2.",
       game:     function(g){ return "Select game. "+g.map(function(x,i){return "Press "+(i+1)+" for "+x.name+".";}).join(" "); },
       date:     function(d){ return "Select date. "+d.map(function(x,i){return "Press "+(i+1)+" for "+x.label+".";}).join(" "); },
       time:     function(s){ return "Available slots. "+s.map(function(x,i){return "Press "+(i+1)+" for "+x+".";}).join(" "); },
@@ -318,11 +318,7 @@ app.post("/respond", async (req, res) => {
       const toNumber = s.callerNumber;
       const websiteUrl = process.env.WEBSITE_URL || "https://" + req.get("host");
       const smsBody =
-        "🏟️ " + SETTINGS.arenaName + "\n\n" +
-        "Book your slot online in under a minute:\n" +
-        websiteUrl + "\n\n" +
-        "Open 8 AM - 11 PM | Pool, Cricket, Volleyball, Table Tennis & Badminton\n\n" +
-        "See you on the court!";
+        SETTINGS.arenaName + " - Book your slot: " + websiteUrl;
       try {
         if (toNumber && twilioClient && process.env.TWILIO_PHONE_NUMBER) {
           await twilioClient.messages.create({

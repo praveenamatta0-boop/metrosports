@@ -331,7 +331,7 @@ app.all("/exotel/step/lang", (req, res) => {
 // Max digits: 1
 app.all("/exotel/step/game", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[GAME] sid=" + sid + " digits=" + digits);
 
@@ -350,7 +350,7 @@ app.all("/exotel/step/game", (req, res) => {
 // Max digits: 1
 app.all("/exotel/step/date", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[DATE] sid=" + sid + " digits=" + digits);
 
@@ -371,7 +371,7 @@ app.all("/exotel/step/date", (req, res) => {
 // Max digits: 2 (up to 15 slots)
 app.all("/exotel/step/time", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[TIME] sid=" + sid + " digits=" + digits + " game=" + s.gameId + " date=" + s.dateKey);
 
@@ -391,7 +391,7 @@ app.all("/exotel/step/time", (req, res) => {
 // Max digits: 1
 app.all("/exotel/step/group", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[GROUP] sid=" + sid + " digits=" + digits);
 
@@ -408,7 +408,7 @@ app.all("/exotel/step/group", (req, res) => {
 // Note: Exotel also passes CallFrom which is caller's number — use as fallback
 app.all("/exotel/step/phone", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[PHONE] sid=" + sid + " digits=" + digits);
 
@@ -430,7 +430,7 @@ app.all("/exotel/step/phone", (req, res) => {
 // Max digits: 1
 app.all("/exotel/step/pay", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[PAY] sid=" + sid + " digits=" + digits);
 
@@ -446,7 +446,7 @@ app.all("/exotel/step/pay", (req, res) => {
 // "Press 1 to confirm. Press 2 to cancel."
 app.all("/exotel/step/confirm", async (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const digits = (params.digits || params.Digits || "").trim();
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[CONFIRM] sid=" + sid + " digits=" + digits + " session=" + JSON.stringify(s));
 

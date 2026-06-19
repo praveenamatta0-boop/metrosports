@@ -290,188 +290,234 @@ function sendExoml(res, body) {
   res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>" + body + "</Response>");
 }
 
-// ── Exotel IVR Routes ─────────────────────────────────────────────────────────
 
-// Incoming call — accept GET + POST, log all params Exotel sends
-app.all("/exotel/incoming", (req, res) => {
-  const params = req.method === "POST" ? req.body : req.query;
-  console.log("[EXOTEL INCOMING] method=" + req.method + " params=" + JSON.stringify(params));
+// ─────────────────────────────────────────────────────────────────────────────
+//  EXOTEL IVR — Step-based Passthru approach
+//  Each step is a separate Exotel Passthru applet hitting /exotel/step/:step
+//  Returns 200 to proceed to next applet, 302 to repeat current Gather
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const callType = params.CallType || params.call_type || "";
-  const sid = params.CallSid || params.CallUUID || params.CallGuid || params.call_sid || "unknown";
-  console.log("[EXOTEL] CallType=" + callType + " sid=" + sid);
+// Helper: get or create session from CallSid
+function getExoSession(params) {
+  const sid = params.CallSid || params.CallFrom || "unknown";
+  if (!sessions[sid]) sessions[sid] = { lang:"en" };
+  return { sid, s: sessions[sid] };
+}
 
-  // With Gather applet, Exotel always sends call-attempt — just respond with IVR every time
-  // Deduplicate: if session already exists and is past lang step, don't reset it
-  if (!sessions[sid] || sessions[sid].step === "lang") {
-    sessions[sid] = { step:"lang", lang:"en" };
-  }
-  sendExoml(res, exoGather(script("en").welcome, "en", 1));
+// Helper: redirect back (302) = re-ask same Gather
+// Helper: proceed (200) = go to next applet
+function proceed(res) { res.status(200).send("ok"); }
+function repeatStep(res) { res.status(302).send("repeat"); }
+
+// ── STEP: Language selection ──────────────────────────────────────────────────
+// Exotel Gather prompt: "Press 1 for English. Press 2 for Hindi. Press 3 for Telugu."
+// Max digits: 1
+app.all("/exotel/step/lang", (req, res) => {
+  const params  = req.method === "POST" ? req.body : req.query;
+  const digits  = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[LANG] sid=" + sid + " digits=" + digits);
+
+  const map = { "1":"en", "2":"hi", "3":"te" };
+  if (!map[digits]) return repeatStep(res);
+  s.lang = map[digits];
+  sessions[sid] = s;
+  proceed(res);
 });
 
-// No input fallback
-app.all("/exotel/noinput", (req, res) => {
+// ── STEP: Game selection ──────────────────────────────────────────────────────
+// Exotel Gather prompt (use lang from session — configure in Exotel per lang or use English):
+// "Press 1 Pool Table. Press 2 Cricket Pitch. Press 3 Beach Volleyball. Press 4 Table Tennis. Press 5 Badminton."
+// Max digits: 1
+app.all("/exotel/step/game", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
-  const sid = params.CallSid || params.CallUUID || params.call_sid || "unknown";
-  const s   = sess(sid);
-  const lc  = script(s.lang);
-  sendExoml(res, exoGather(lc.invalid + script("en").welcome, s.lang, 1));
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[GAME] sid=" + sid + " digits=" + digits);
+
+  const games = activeGames();
+  const idx   = parseInt(digits) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= games.length) return repeatStep(res);
+  s.gameId   = games[idx].id;
+  s.gameName = games[idx].name;
+  s.gameRate = games[idx].rate;
+  sessions[sid] = s;
+  proceed(res);
 });
 
-// Main response handler — log everything
-app.all("/exotel/respond", async (req, res) => {
-  const body   = req.method === "POST" ? req.body : req.query;
-  console.log("[EXOTEL RESPOND] method=" + req.method + " params=" + JSON.stringify(body));
-  const sid    = body.CallSid || body.CallUUID || body.CallGuid || body.call_sid || "unknown";
-  const digits = (body.digits || body.Digits || body.digit || "").trim();
-  const s      = sess(sid);
-  const lc     = script(s.lang);
+// ── STEP: Date selection ──────────────────────────────────────────────────────
+// Exotel Gather prompt: "Press 1 for today. Press 2 for tomorrow..." (up to 7 days)
+// Max digits: 1
+app.all("/exotel/step/date", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[DATE] sid=" + sid + " digits=" + digits);
 
-  console.log("[MSL]["+sid+"]["+s.lang+"]["+s.step+"] digits="+digits);
+  const dates = getDates();
+  const idx   = parseInt(digits) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= dates.length) return repeatStep(res);
+  if (SETTINGS.blockedDates.includes(dates[idx].key)) return repeatStep(res);
+  s.dateKey = dates[idx].key;
+  s.date    = dates[idx].label;
+  sessions[sid] = s;
+  proceed(res);
+});
 
-  function ask(prompt, numDigits) {
-    sessions[sid] = s;
-    sendExoml(res, exoGather(prompt, s.lang, numDigits || 1));
-  }
-  function askPhone(prompt) {
-    sessions[sid] = s;
-    sendExoml(res, exoGather(prompt, s.lang, 10, "#"));
-  }
-  function askName(prompt) {
-    sessions[sid] = s;
-    sendExoml(res, exoSpeechGather(prompt));
-  }
-  function inv(prompt, numDigits) {
-    sessions[sid] = s;
-    sendExoml(res, exoGather(lc.invalid + prompt, s.lang, numDigits || 1));
-  }
-  function end(msg) {
-    delete sessions[sid];
-    sendExoml(res, exoSay(msg) + "<Hangup/>");
-  }
+// ── STEP: Time slot selection ─────────────────────────────────────────────────
+// Exotel Gather prompt: Dynamic based on available slots
+// Since Gather is static in Exotel, we use fixed slot numbering
+// Our server checks if chosen slot is actually available
+// Max digits: 2 (up to 15 slots)
+app.all("/exotel/step/time", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[TIME] sid=" + sid + " digits=" + digits + " game=" + s.gameId + " date=" + s.dateKey);
 
-  // ── LANG ──
-  if (s.step === "lang") {
-    if (!["1","2","3"].includes(digits)) return inv(script("en").welcome);
-    s.lang = digits==="1"?"en":digits==="2"?"hi":"te";
-    s.step = "game";
-    return ask(script(s.lang).game(activeGames()));
-  }
+  if (!s.gameId || !s.dateKey) return repeatStep(res);
 
-  // ── GAME ──
-  if (s.step === "game") {
-    const games = activeGames();
-    const idx   = parseInt(digits) - 1;
-    if (isNaN(idx)||idx<0||idx>=games.length) return inv(lc.game(games));
-    s.gameId = games[idx].id; s.gameName = games[idx].name;
-    s.step = "date";
-    return ask(lc.date(getDates()));
-  }
-
-  // ── DATE ──
-  if (s.step === "date") {
-    const dates = getDates();
-    const idx   = parseInt(digits) - 1;
-    if (isNaN(idx)||idx<0||idx>=dates.length) return inv(lc.date(dates));
-    if (SETTINGS.blockedDates.includes(dates[idx].key)) {
-      return ask(lc.blocked + " " + lc.date(dates));
-    }
-    s.dateKey = dates[idx].key; s.date = dates[idx].label;
-    const slots = await getAvailableSlots(s.gameId, s.dateKey);
-    if (!slots.length) { s.step="noSlots"; return ask(lc.noSlots); }
-    s.slots = slots; s.step = "time";
-    return ask(lc.time(slots));
-  }
-
-  // ── NO SLOTS ──
-  if (s.step === "noSlots") {
-    if (digits==="1") { s.step="date"; return ask(lc.date(getDates())); }
-    if (digits==="2") { s.step="game"; return ask(lc.game(activeGames())); }
-    return inv(lc.noSlots);
-  }
-
-  // ── TIME ──
-  if (s.step === "time") {
-    const slots = s.slots || [];
-    const idx   = parseInt(digits) - 1;
-    if (isNaN(idx)||idx<0||idx>=slots.length) return inv(lc.time(slots));
-    s.timeSlot = slots[idx]; s.step = "group";
-    return ask(lc.group);
-  }
-
-  // ── GROUP ──
-  if (s.step === "group") {
+  getAvailableSlots(s.gameId, s.dateKey).then(function(slots) {
     const idx = parseInt(digits) - 1;
-    if (isNaN(idx)||idx<0||idx>4) return inv(lc.group);
-    s.group = GRP[s.lang][idx]; s.step = "name";
-    return askName(lc.namePr);
-  }
-
-  // ── PHONE ──
-  if (s.step === "phone") {
-    const raw = digits.replace(/[\s\-]/g,"");
-    const ph  = raw.match(/([6-9]\d{9})/);
-    if (!ph) return askPhone(lc.noHear + lc.phone(s.name));
-    s.phone = ph[1]; s.step = "pay";
-    return ask(lc.pay);
-  }
-
-  // ── PAYMENT ──
-  if (s.step === "pay") {
-    const map = {"1":"Cash","2":"Card","3":"UPI"};
-    if (!map[digits]) return inv(lc.pay);
-    s.pay = map[digits]; s.step = "confirm";
-    return ask(lc.confirm(s));
-  }
-
-  // ── CONFIRM ──
-  if (s.step === "confirm") {
-    if (digits === "1") {
-      const game = SETTINGS.games.find(g => g.id === s.gameId);
-      const b = new Booking({
-        id:       genId(),
-        gameId:   s.gameId,
-        gameName: s.gameName,
-        gameRate: game?.rate || 0,
-        dateKey:  s.dateKey,
-        date:     s.date,
-        timeSlot: s.timeSlot,
-        group:    s.group,
-        name:     s.name,
-        phone:    s.phone,
-        pay:      s.pay,
-        lang:     s.lang,
-        status:   "confirmed",
-      });
-      await b.save();
-      s.id = b.id;
-      return end(lc.done(s));
-    }
-    if (digits === "2") {
-      sessions[sid] = { step:"game", lang:s.lang };
-      return sendExoml(res, exoGather(script(s.lang).restart + script(s.lang).game(activeGames()), s.lang, 1));
-    }
-    return inv(lc.confirm(s));
-  }
-
-  end(lc.bye);
+    if (isNaN(idx) || idx < 0 || idx >= slots.length) return repeatStep(res);
+    s.timeSlot = slots[idx];
+    sessions[sid] = s;
+    proceed(res);
+  }).catch(function() { repeatStep(res); });
 });
 
-// Name from speech transcription callback
-app.post("/exotel/transcribe", async (req, res) => {
-  const sid        = req.body.CallSid || req.body.CallUUID || "unknown";
-  const transcript = (req.body.TranscriptionText || "").trim();
-  const s          = sess(sid);
-  const lc         = script(s.lang);
+// ── STEP: Group size ──────────────────────────────────────────────────────────
+// Exotel Gather: "Press 1 for 1-2. Press 2 for 3-5. Press 3 for 6-10. Press 4 for 11-20. Press 5 for 20+"
+// Max digits: 1
+app.all("/exotel/step/group", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[GROUP] sid=" + sid + " digits=" + digits);
 
-  if (transcript && transcript.length > 1) {
-    s.name = transcript.replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i,"").trim();
-    s.step = "phone";
-    sessions[sid] = s;
-    sendExoml(res, exoGather(lc.phone(s.name), s.lang, 10, "#"));
-  } else {
-    sendExoml(res, exoSpeechGather(lc.noHear + lc.namePr));
+  const idx = parseInt(digits) - 1;
+  if (isNaN(idx) || idx < 0 || idx > 4) return repeatStep(res);
+  s.group = GRP.en[idx];
+  sessions[sid] = s;
+  proceed(res);
+});
+
+// ── STEP: Phone number ────────────────────────────────────────────────────────
+// Exotel Gather: "Please enter your 10 digit mobile number followed by hash"
+// Max digits: 10, finish on key: #
+// Note: Exotel also passes CallFrom which is caller's number — use as fallback
+app.all("/exotel/step/phone", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[PHONE] sid=" + sid + " digits=" + digits);
+
+  // Try entered digits first, fall back to caller's number
+  const raw = digits.replace(/[\s\-]/g, "");
+  const ph  = raw.match(/([6-9]\d{9})/) ||
+              (params.CallFrom||"").replace(/[^0-9]/g,"").match(/([6-9]\d{9})/);
+
+  if (!ph) return repeatStep(res);
+  s.phone = ph[1];
+  // Also use CallFrom as name fallback
+  s.name  = params.CallFrom ? "Caller " + params.CallFrom.slice(-4) : "Customer";
+  sessions[sid] = s;
+  proceed(res);
+});
+
+// ── STEP: Payment ─────────────────────────────────────────────────────────────
+// Exotel Gather: "Press 1 for Cash. Press 2 for Card. Press 3 for UPI."
+// Max digits: 1
+app.all("/exotel/step/pay", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[PAY] sid=" + sid + " digits=" + digits);
+
+  const map = { "1":"Cash", "2":"Card", "3":"UPI" };
+  if (!map[digits]) return repeatStep(res);
+  s.pay = map[digits];
+  sessions[sid] = s;
+  proceed(res);
+});
+
+// ── STEP: Confirm & Save booking ──────────────────────────────────────────────
+// This Passthru is called after final confirmation Gather
+// "Press 1 to confirm. Press 2 to cancel."
+app.all("/exotel/step/confirm", async (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim();
+  const { sid, s } = getExoSession(params);
+  console.log("[CONFIRM] sid=" + sid + " digits=" + digits + " session=" + JSON.stringify(s));
+
+  if (digits === "2") {
+    delete sessions[sid];
+    return repeatStep(res); // 302 → goes to cancel flow in Exotel
   }
+
+  if (digits !== "1") return repeatStep(res);
+
+  // Validate we have all required fields
+  if (!s.gameId || !s.dateKey || !s.timeSlot || !s.group || !s.phone || !s.pay) {
+    console.log("[CONFIRM] Missing fields, restarting");
+    delete sessions[sid];
+    return repeatStep(res);
+  }
+
+  try {
+    const b = new Booking({
+      id:       genId(),
+      gameId:   s.gameId,
+      gameName: s.gameName,
+      gameRate: s.gameRate || 0,
+      dateKey:  s.dateKey,
+      date:     s.date,
+      timeSlot: s.timeSlot,
+      group:    s.group,
+      name:     s.name || "Caller",
+      phone:    s.phone,
+      pay:      s.pay,
+      lang:     s.lang || "en",
+      status:   "confirmed",
+    });
+    await b.save();
+    s.bookingId = b.id;
+    sessions[sid] = s;
+    console.log("[CONFIRM] Booking saved: " + b.id);
+    proceed(res); // 200 → goes to confirmation Greeting applet in Exotel
+  } catch(e) {
+    console.error("[CONFIRM] Save error:", e.message);
+    repeatStep(res);
+  }
+});
+
+// ── STEP: Get available slots info (for Exotel Greeting prompt) ───────────────
+// Call this from Exotel Greeting applet's dynamic URL to get slot count message
+app.all("/exotel/slots", async (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+
+  if (!s.gameId || !s.dateKey) {
+    res.json({ message: "No slots information available." });
+    return;
+  }
+
+  const slots = await getAvailableSlots(s.gameId, s.dateKey);
+  res.json({
+    count:   slots.length,
+    slots:   slots,
+    message: slots.length > 0
+      ? slots.length + " slots available. " + slots.map((sl, i) => "Press " + (i+1) + " for " + sl + ".").join(" ")
+      : "No slots available for this date.",
+  });
+});
+
+// ── STATUS endpoint — returns current session state ───────────────────────────
+// Useful for debugging and for Exotel Greeting to read booking confirmation
+app.get("/exotel/session/:sid", (req, res) => {
+  const s = sessions[req.params.sid];
+  if (!s) return res.json({ error: "Session not found" });
+  res.json(s);
 });
 
 // ── Auth ──────────────────────────────────────────────────────────────────────

@@ -13,6 +13,16 @@ const path     = require("path");
 const mongoose = require("mongoose");
 const { VoiceResponse } = twilio.twiml;
 
+// Twilio REST client for sending SMS (uses Account SID + Auth Token from env)
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "";
+const TWILIO_AUTH_TOKEN  = process.env.TWILIO_AUTH_TOKEN  || "";
+const twilioClient = (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN)
+  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+  : null;
+
+// Language selection prompt (separate from the intro/SMS-choice welcome message)
+const L_LANG_PROMPT = "Press 1 for English. Press 2 for Hindi. Press 3 for Telugu.";
+
 const app = express();
 app.use(cors());
 app.use(express.urlencoded({ extended: false }));
@@ -145,6 +155,15 @@ async function bookedCount(gameId, dateKey, slot) {
 
 function genId() { return "MSL-" + Math.random().toString(36).substr(2,6).toUpperCase(); }
 
+// Extract a clean 10-digit Indian mobile number from Twilio's caller ID format
+// Twilio sends From as "+919515221555" or "09515221555" etc.
+function extractIndianPhone(callerNumber) {
+  if (!callerNumber) return null;
+  const digitsOnly = callerNumber.replace(/[^0-9]/g, ""); // strip +, spaces, etc.
+  const match = digitsOnly.match(/([6-9]\d{9})$/); // last 10 digits starting 6-9
+  return match ? match[1] : null;
+}
+
 // ── Group labels ──────────────────────────────────────────────────────────────
 const GRP = {
   en:["1-2 people","3-5 people","6-10 people","11-20 people","20+ people"],
@@ -158,7 +177,7 @@ function script(lang) {
   const S = {
     en: {
       code:"en-IN", voice:"Polly.Aditi",
-      welcome:  "Welcome to " + name + ". Press 1 for English. Press 2 for Hindi. Press 3 for Telugu.",
+      welcome:  "Welcome to " + name + ". To book online, press 1, and I will text you the link. To continue booking on this call, press 2.",
       game:     function(g){ return "Select game. "+g.map(function(x,i){return "Press "+(i+1)+" for "+x.name+".";}).join(" "); },
       date:     function(d){ return "Select date. "+d.map(function(x,i){return "Press "+(i+1)+" for "+x.label+".";}).join(" "); },
       time:     function(s){ return "Available slots. "+s.map(function(x,i){return "Press "+(i+1)+" for "+x+".";}).join(" "); },
@@ -226,13 +245,13 @@ function sess(sid) {
 
 // ── TwiML gathers ──────────────────────────────────────────────────────────────
 function dtmfGather(twiml, lang, numDigits) {
-  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:15, numDigits:numDigits||1, language:script(lang).code });
+  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:8, numDigits:numDigits||1, language:script(lang).code });
 }
 function phoneGather(twiml, lang) {
-  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:20, numDigits:10, finishOnKey:"#", language:script(lang).code });
+  return twiml.gather({ input:"dtmf", action:"/respond", method:"POST", timeout:12, finishOnKey:"#", language:script(lang).code });
 }
 function nameGather(twiml, lang) {
-  return twiml.gather({ input:"speech", action:"/respond", method:"POST", speechTimeout:3, timeout:12, language:script(lang).code });
+  return twiml.gather({ input:"speech", action:"/respond", method:"POST", speechTimeout:"auto", timeout:8, language:script(lang).code });
 }
 function sendXml(res, twiml) { res.type("text/xml"); res.send(twiml.toString()); }
 
@@ -242,7 +261,8 @@ function sendXml(res, twiml) { res.type("text/xml"); res.send(twiml.toString());
 
 app.post("/incoming", (req, res) => {
   const sid = req.body.CallSid;
-  sessions[sid] = { step:"lang", lang:"en" };
+  const from = req.body.From || "";
+  sessions[sid] = { step:"intro", lang:"en", callerNumber: from };
   const twiml = new VoiceResponse();
   const g = dtmfGather(twiml, "en");
   g.say({ voice:"Polly.Aditi" }, script("en").welcome);
@@ -292,8 +312,42 @@ app.post("/respond", async (req, res) => {
     sendXml(res, twiml);
   }
 
+  if (s.step === "intro") {
+    if (digits === "1") {
+      // Send SMS with booking link
+      const toNumber = s.callerNumber;
+      const websiteUrl = process.env.WEBSITE_URL || "https://" + req.get("host");
+      const smsBody =
+        "🏟️ " + SETTINGS.arenaName + "\n\n" +
+        "Book your slot online in under a minute:\n" +
+        websiteUrl + "\n\n" +
+        "Open 8 AM - 11 PM | Pool, Cricket, Volleyball, Table Tennis & Badminton\n\n" +
+        "See you on the court!";
+      try {
+        if (toNumber && twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+          await twilioClient.messages.create({
+            body: smsBody,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: toNumber,
+          });
+          console.log("[SMS] Sent booking link to " + toNumber);
+        } else {
+          console.log("[SMS] Skipped — missing TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER env vars or caller number");
+        }
+      } catch (e) {
+        console.error("[SMS] Failed to send:", e.message);
+      }
+      return end("We have sent you the booking link by SMS. Thank you for calling " + SETTINGS.arenaName + ". Goodbye.");
+    }
+    if (digits === "2") {
+      s.step = "lang";
+      return askDtmf(L_LANG_PROMPT);
+    }
+    return inv(script("en").welcome);
+  }
+
   if (s.step === "lang") {
-    if (!["1","2","3"].includes(digits)) return inv(script("en").welcome);
+    if (!["1","2","3"].includes(digits)) return inv(L_LANG_PROMPT);
     s.lang = digits==="1"?"en":digits==="2"?"hi":"te";
     s.step = "game";
     return askDtmf(script(s.lang).game(activeGames()));
@@ -346,7 +400,18 @@ app.post("/respond", async (req, res) => {
   if (s.step === "name") {
     const name = speech.trim().replace(/^(my name is|i am|i'm|mera naam|naa peru)\s+/i,"").trim();
     if (!name||name.length<2) return askName(lc.noHear+lc.namePr);
-    s.name = name; s.step = "phone";
+    s.name = name;
+
+    // Auto-capture phone number from caller ID instead of asking
+    const callerPhone = extractIndianPhone(s.callerNumber);
+    if (callerPhone) {
+      s.phone = callerPhone;
+      s.step  = "pay";
+      return askDtmf(lc.pay);
+    }
+
+    // Fallback: if caller ID is unavailable/blocked, ask manually
+    s.step = "phone";
     return askPhone(lc.phone(s.name));
   }
 

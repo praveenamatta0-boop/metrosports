@@ -310,19 +310,23 @@ function proceed(res) { res.status(200).send("ok"); }
 function repeatStep(res) { res.status(302).send("repeat"); }
 
 // Helper: build Exotel Gather JSON response with dynamic prompt text
+// Includes all fields Exotel's schema validates against to avoid "URL failure case"
 function gatherPrompt(text, maxDigits, finishOnKey) {
-  const resp = {
+  return {
     gather_prompt: { text: text },
     max_input_digits: maxDigits || 1,
+    finish_on_key: finishOnKey || "",
+    input_timeout: 15,
+    repeat_menu: 1,
+    repeat_gather_prompt: { text: "Sorry, I did not get any input. " + text },
   };
-  if (finishOnKey) resp.finish_on_key = finishOnKey;
-  return resp;
 }
 
 function sendPrompt(req, res, label, resp) {
   const params = req.method === "POST" ? req.body : req.query;
   console.log("[PROMPT-" + label + "] sid=" + (params.CallSid||"?") + " response=" + JSON.stringify(resp));
   res.set("Content-Type", "application/json");
+  res.set("Exotel-Version", "1.0");
   res.status(200).json(resp);
 }
 

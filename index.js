@@ -319,6 +319,13 @@ function gatherPrompt(text, maxDigits, finishOnKey) {
   return resp;
 }
 
+function sendPrompt(req, res, label, resp) {
+  const params = req.method === "POST" ? req.body : req.query;
+  console.log("[PROMPT-" + label + "] sid=" + (params.CallSid||"?") + " response=" + JSON.stringify(resp));
+  res.set("Content-Type", "application/json");
+  res.status(200).json(resp);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  DYNAMIC GATHER PROMPTS — set these as the "Primary URL" on each Gather
 //  applet in Exotel (separate from the Passthru that processes the answer).
@@ -327,14 +334,14 @@ function gatherPrompt(text, maxDigits, finishOnKey) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.all("/exotel/prompt/lang", (req, res) => {
-  res.json(gatherPrompt(script("en").welcome, 1));
+  sendPrompt(req, res, "LANG", gatherPrompt(script("en").welcome, 1));
 });
 
 app.all("/exotel/prompt/game", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
   const { s } = getExoSession(params);
   const lc = script(s.lang || "en");
-  res.json(gatherPrompt(lc.game(activeGames()), 1));
+  sendPrompt(req, res, "GAME", gatherPrompt(lc.game(activeGames()), 1));
 });
 
 app.all("/exotel/prompt/date", (req, res) => {

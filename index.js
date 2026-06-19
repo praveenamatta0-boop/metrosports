@@ -309,6 +309,78 @@ function getExoSession(params) {
 function proceed(res) { res.status(200).send("ok"); }
 function repeatStep(res) { res.status(302).send("repeat"); }
 
+// Helper: build Exotel Gather JSON response with dynamic prompt text
+function gatherPrompt(text, maxDigits, finishOnKey) {
+  const resp = {
+    gather_prompt: { text: text },
+    max_input_digits: maxDigits || 1,
+  };
+  if (finishOnKey) resp.finish_on_key = finishOnKey;
+  return resp;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DYNAMIC GATHER PROMPTS — set these as the "Primary URL" on each Gather
+//  applet in Exotel (separate from the Passthru that processes the answer).
+//  These read the caller's chosen language from session and return the
+//  correct prompt text + Exotel will speak it via TTS in the right language.
+// ─────────────────────────────────────────────────────────────────────────────
+
+app.all("/exotel/prompt/lang", (req, res) => {
+  res.json(gatherPrompt(script("en").welcome, 1));
+});
+
+app.all("/exotel/prompt/game", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.game(activeGames()), 1));
+});
+
+app.all("/exotel/prompt/date", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.date(getDates()), 1));
+});
+
+app.all("/exotel/prompt/time", async (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  if (!s.gameId || !s.dateKey) return res.json(gatherPrompt(lc.invalid, 2));
+  const slots = await getAvailableSlots(s.gameId, s.dateKey);
+  res.json(gatherPrompt(lc.time(slots), 2));
+});
+
+app.all("/exotel/prompt/group", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.group, 1));
+});
+
+app.all("/exotel/prompt/phone", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.phone(s.name), 10, "#"));
+});
+
+app.all("/exotel/prompt/pay", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.pay, 1));
+});
+
+app.all("/exotel/prompt/confirm", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { s } = getExoSession(params);
+  const lc = script(s.lang || "en");
+  res.json(gatherPrompt(lc.confirm(s), 1));
+});
+
 // ── STEP: Language selection ──────────────────────────────────────────────────
 // Exotel Gather prompt: "Press 1 for English. Press 2 for Hindi. Press 3 for Telugu."
 // Max digits: 1
@@ -450,17 +522,38 @@ app.all("/exotel/step/confirm", async (req, res) => {
   const { sid, s } = getExoSession(params);
   console.log("[CONFIRM] sid=" + sid + " digits=" + digits + " session=" + JSON.stringify(s));
 
-  if (digits === "2") {
-    delete sessions[sid];
-    return repeatStep(res); // 302 → goes to cancel flow in Exotel
+  // Invalid input (not 1 or 2) — repeat the confirm Gather
+  if (digits !== "1" && digits !== "2") return repeatStep(res);
+
+  // User pressed 2 — cancel. Return 200 here (valid input) and let the
+  // NEXT applet in Exotel route to "cancelled" Greeting based on a
+  // separate check — but since Passthru only supports binary 200/302,
+  // we keep the session alive (don't delete) and mark it cancelled so
+  // the Greeting applet can read s.cancelled to pick the right message.
+  // IMPORTANT: wire this Passthru's 200 output to a SECOND tiny Passthru
+  // at /exotel/step/route-confirm which then returns 200 (confirmed) or
+  // 302 (cancelled) — see that route below.
+  s.wantsCancel = (digits === "2");
+  sessions[sid] = s;
+  proceed(res); // always 200 — next applet decides confirmed vs cancelled
+});
+
+// ── STEP: Route to confirmed or cancelled based on previous choice ────────────
+// Wire this Passthru AFTER /exotel/step/confirm in the Exotel flow.
+// 200 → goes to "Confirmed" Greeting applet
+// 302 → goes to "Cancelled" Greeting applet
+app.all("/exotel/step/route-confirm", async (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+
+  if (s.wantsCancel) {
+    console.log("[ROUTE-CONFIRM] sid=" + sid + " → cancelled");
+    return repeatStep(res); // 302 → Cancelled Greeting
   }
 
-  if (digits !== "1") return repeatStep(res);
-
-  // Validate we have all required fields
+  // Validate required fields before saving
   if (!s.gameId || !s.dateKey || !s.timeSlot || !s.group || !s.phone || !s.pay) {
-    console.log("[CONFIRM] Missing fields, restarting");
-    delete sessions[sid];
+    console.log("[ROUTE-CONFIRM] Missing fields");
     return repeatStep(res);
   }
 
@@ -483,10 +576,10 @@ app.all("/exotel/step/confirm", async (req, res) => {
     await b.save();
     s.bookingId = b.id;
     sessions[sid] = s;
-    console.log("[CONFIRM] Booking saved: " + b.id);
-    proceed(res); // 200 → goes to confirmation Greeting applet in Exotel
-  } catch(e) {
-    console.error("[CONFIRM] Save error:", e.message);
+    console.log("[ROUTE-CONFIRM] Booking saved: " + b.id);
+    proceed(res); // 200 → Confirmed Greeting
+  } catch (e) {
+    console.error("[ROUTE-CONFIRM] Save error:", e.message);
     repeatStep(res);
   }
 });
@@ -510,6 +603,45 @@ app.all("/exotel/slots", async (req, res) => {
       ? slots.length + " slots available. " + slots.map((sl, i) => "Press " + (i+1) + " for " + sl + ".").join(" ")
       : "No slots available for this date.",
   });
+});
+
+// ── GREETING: Booking confirmation message (dynamic text for Exotel Greeting applet) ──
+// Point your "Confirmed" Greeting applet's "Read text like a robot" URL field to this.
+// MUST return plain text with Content-Type: text/plain
+app.all("/exotel/greeting/confirmed", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+
+  res.set("Content-Type", "text/plain");
+
+  if (!s || !s.bookingId) {
+    return res.send("Thank you for calling Metro Sports Lounge. Goodbye.");
+  }
+
+  const text =
+    "Booking confirmed! Your booking ID is " + s.bookingId.split("").join(" ") + ". " +
+    s.gameName + " on " + s.date + " at " + s.timeSlot + ", for " + s.group + ". " +
+    "Payment by " + s.pay + ". " +
+    "See you at Metro Sports Lounge! Goodbye.";
+
+  console.log("[GREETING-CONFIRMED] sid=" + sid + " text=" + text);
+  res.send(text);
+});
+
+// ── GREETING: Cancellation message ────────────────────────────────────────────
+app.all("/exotel/greeting/cancelled", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+  delete sessions[sid];
+
+  res.set("Content-Type", "text/plain");
+  res.send("Your booking has been cancelled. Thank you for calling Metro Sports Lounge. Goodbye.");
+});
+
+// ── GREETING: Generic error / restart message ─────────────────────────────────
+app.all("/exotel/greeting/error", (req, res) => {
+  res.set("Content-Type", "text/plain");
+  res.send("Sorry, something went wrong with your booking. Please call again. Goodbye.");
 });
 
 // ── STATUS endpoint — returns current session state ───────────────────────────

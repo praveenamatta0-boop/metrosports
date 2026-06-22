@@ -1072,7 +1072,7 @@ async function start() {
   console.log("MongoDB connected");
   await loadSettings();
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(SETTINGS.arenaName + " running on port " + PORT));
+  app.listen(PORT, () => console.log(SETTINGS.arenaName + " — VOICEBOT TRIAL — running on port " + PORT));
 }
 
 start().catch(console.error);

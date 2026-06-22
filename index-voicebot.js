@@ -481,29 +481,35 @@ app.all("/exotel/step/group", (req, res) => {
   const idx = parseInt(digits) - 1;
   if (isNaN(idx) || idx < 0 || idx > 4) return repeatStep(res);
   s.group = GRP.en[idx];
+
+  // Auto-capture phone + name from caller ID (CallFrom) — no need to ask
+  const callerNum = (params.CallFrom || params.From || "").replace(/[^0-9]/g, "");
+  const phMatch   = callerNum.match(/([6-9]\d{9})/);
+  s.phone = phMatch ? phMatch[1] : (callerNum.slice(-10) || "0000000000");
+  s.name  = "Caller " + (s.phone ? s.phone.slice(-4) : "");
+  console.log("[GROUP] auto-captured phone=" + s.phone + " from CallFrom=" + (params.CallFrom||""));
+
   sessions[sid] = s;
   proceed(res);
 });
 
-// ── STEP: Phone number ────────────────────────────────────────────────────────
-// Exotel Gather: "Please enter your 10 digit mobile number followed by hash"
-// Max digits: 10, finish on key: #
-// Note: Exotel also passes CallFrom which is caller's number — use as fallback
+// ── STEP: Phone number (LEGACY — no longer used in flow) ──────────────────────
+// Phone is now auto-captured from caller ID during the group step.
+// This route is kept only as a safety fallback if you still have a phone Gather.
 app.all("/exotel/step/phone", (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
   const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[PHONE] sid=" + sid + " digits=" + digits);
 
-  // Try entered digits first, fall back to caller's number
   const raw = digits.replace(/[\s\-]/g, "");
   const ph  = raw.match(/([6-9]\d{9})/) ||
               (params.CallFrom||"").replace(/[^0-9]/g,"").match(/([6-9]\d{9})/);
 
-  if (!ph) return repeatStep(res);
-  s.phone = ph[1];
-  // Also use CallFrom as name fallback
-  s.name  = params.CallFrom ? "Caller " + params.CallFrom.slice(-4) : "Customer";
+  // Always proceed — if we already have phone from group step, just continue
+  if (ph) s.phone = ph[1];
+  if (!s.phone) s.phone = "0000000000";
+  if (!s.name)  s.name  = "Caller " + s.phone.slice(-4);
   sessions[sid] = s;
   proceed(res);
 });

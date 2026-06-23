@@ -453,19 +453,28 @@ app.all("/exotel/prompt/confirm", (req, res) => {
   res.json(gatherPrompt(lc.confirm(s), 1));
 });
 
-// ── STEP: Language selection ──────────────────────────────────────────────────
-// Exotel Gather prompt: "Press 1 for English. Press 2 for Hindi. Press 3 for Telugu."
-// Max digits: 1
-app.all("/exotel/step/lang", (req, res) => {
-  const params  = req.method === "POST" ? req.body : req.query;
-  const digits  = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
+// ── STEP: Welcome / Start ─────────────────────────────────────────────────────
+// Exotel Gather prompt: "Welcome to Metro Sports Lounge. Press any key to start
+// the booking." Max digits: 1. Any key proceeds.
+// Passthru URL: https://metrosports.onrender.com/exotel/step/start
+app.all("/exotel/step/start", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
-  console.log("[LANG] sid=" + sid + " digits=" + digits);
-
-  const map = { "1":"en", "2":"hi", "3":"te" };
-  if (!map[digits]) return repeatStep(res);
-  s.lang = map[digits];
+  s.lang = "en";
   sessions[sid] = s;
+  console.log("[START] sid=" + sid + " digits=" + digits + " → starting booking");
+  // Any key (or even empty) proceeds to the next step (Game)
+  proceed(res);
+});
+
+// Backward-compatible alias — old /exotel/step/lang still works the same way
+app.all("/exotel/step/lang", (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+  s.lang = "en";
+  sessions[sid] = s;
+  console.log("[START/lang] sid=" + sid + " → starting booking (English)");
   proceed(res);
 });
 

@@ -23,6 +23,15 @@ const ADMIN_USER  = process.env.ADMIN_USER  || "admin";
 const ADMIN_PASS  = process.env.ADMIN_PASS  || "msl@1234";
 const ADMIN_HASH  = bcrypt.hashSync(ADMIN_PASS, 10);
 
+// ── Exotel SMS config (set these in Render env vars) ──────────────────────────
+const EXOTEL_API_KEY     = process.env.EXOTEL_API_KEY     || "";
+const EXOTEL_API_TOKEN   = process.env.EXOTEL_API_TOKEN   || "";
+const EXOTEL_SID         = process.env.EXOTEL_SID         || "";
+const EXOTEL_SUBDOMAIN   = process.env.EXOTEL_SUBDOMAIN   || "api.exotel.com";
+const EXOTEL_SMS_SENDER  = process.env.EXOTEL_SMS_SENDER  || ""; // your approved sender ID / DID
+const EXOTEL_DLT_ENTITY  = process.env.EXOTEL_DLT_ENTITY_ID   || "";
+const EXOTEL_DLT_TEMPLATE= process.env.EXOTEL_DLT_TEMPLATE_ID || "";
+
 // ── MongoDB Schemas ───────────────────────────────────────────────────────────
 
 // Booking
@@ -161,6 +170,58 @@ async function bookedCount(gameId, dateKey, slot) {
 
 function genId() {
   return "MSL-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+}
+
+// ── Send confirmation SMS via Exotel ──────────────────────────────────────────
+// Uses Node's built-in fetch (Node 18+). Fails silently (logs only) so a booking
+// is never lost just because SMS failed.
+async function sendBookingSMS(booking) {
+  // Skip if SMS not configured
+  if (!EXOTEL_API_KEY || !EXOTEL_API_TOKEN || !EXOTEL_SID || !EXOTEL_SMS_SENDER) {
+    console.log("[SMS] Skipped — Exotel SMS env vars not set");
+    return;
+  }
+  // Need a valid Indian mobile
+  const to = (booking.phone || "").replace(/[^0-9]/g, "");
+  if (!/^[6-9]\d{9}$/.test(to)) {
+    console.log("[SMS] Skipped — invalid phone: " + booking.phone);
+    return;
+  }
+
+  // Message body — keep this matching your DLT-approved template!
+  const body =
+    "Metro Sports Lounge: Booking confirmed! ID " + booking.id +
+    ". " + booking.gameName + " on " + booking.date + " at " + booking.timeSlot +
+    ". See you there!";
+
+  // Build the Exotel SMS API URL
+  const url = "https://" + EXOTEL_API_KEY + ":" + EXOTEL_API_TOKEN +
+              "@" + EXOTEL_SUBDOMAIN + "/v1/Accounts/" + EXOTEL_SID + "/Sms/send.json";
+
+  // Form params
+  const form = new URLSearchParams();
+  form.append("From", EXOTEL_SMS_SENDER);
+  form.append("To", to);
+  form.append("Body", body);
+  form.append("sms_type", "transactional");
+  if (EXOTEL_DLT_ENTITY)   form.append("DltEntityId", EXOTEL_DLT_ENTITY);
+  if (EXOTEL_DLT_TEMPLATE) form.append("DltTemplateId", EXOTEL_DLT_TEMPLATE);
+
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const text = await resp.text();
+    if (resp.ok) {
+      console.log("[SMS] ✓ Sent to " + to + " for booking " + booking.id);
+    } else {
+      console.error("[SMS] Failed (" + resp.status + "): " + text.slice(0, 200));
+    }
+  } catch (e) {
+    console.error("[SMS] Error sending:", e.message);
+  }
 }
 
 // ── Group labels ──────────────────────────────────────────────────────────────
@@ -531,48 +592,45 @@ app.all("/exotel/step/pay", (req, res) => {
 });
 
 // ── STEP: Confirm & Save booking ──────────────────────────────────────────────
-// This Passthru is called after final confirmation Gather
+// This Passthru is called after final confirmation Gather.
 // "Press 1 to confirm. Press 2 to cancel."
+// Single-applet design: saves the booking here directly.
+//   200 (proceed)  → wire to Confirmed Greeting → Hangup
+//   302 (repeat)   → wire to Cancelled Greeting → Hangup
 app.all("/exotel/step/confirm", async (req, res) => {
   const params = req.method === "POST" ? req.body : req.query;
   const digits = (params.digits || params.Digits || "").trim().replace(/^"+|"+$/g, "");
   const { sid, s } = getExoSession(params);
   console.log("[CONFIRM] sid=" + sid + " digits=" + digits + " session=" + JSON.stringify(s));
 
-  // Invalid input (not 1 or 2) — repeat the confirm Gather
-  if (digits !== "1" && digits !== "2") return repeatStep(res);
-
-  // User pressed 2 — cancel. Return 200 here (valid input) and let the
-  // NEXT applet in Exotel route to "cancelled" Greeting based on a
-  // separate check — but since Passthru only supports binary 200/302,
-  // we keep the session alive (don't delete) and mark it cancelled so
-  // the Greeting applet can read s.cancelled to pick the right message.
-  // IMPORTANT: wire this Passthru's 200 output to a SECOND tiny Passthru
-  // at /exotel/step/route-confirm which then returns 200 (confirmed) or
-  // 302 (cancelled) — see that route below.
-  s.wantsCancel = (digits === "2");
-  sessions[sid] = s;
-  proceed(res); // always 200 — next applet decides confirmed vs cancelled
-});
-
-// ── STEP: Route to confirmed or cancelled based on previous choice ────────────
-// Wire this Passthru AFTER /exotel/step/confirm in the Exotel flow.
-// 200 → goes to "Confirmed" Greeting applet
-// 302 → goes to "Cancelled" Greeting applet
-app.all("/exotel/step/route-confirm", async (req, res) => {
-  const params = req.method === "POST" ? req.body : req.query;
-  const { sid, s } = getExoSession(params);
-
-  if (s.wantsCancel) {
-    console.log("[ROUTE-CONFIRM] sid=" + sid + " → cancelled");
+  // Caller pressed 2 → cancel
+  if (digits === "2") {
+    console.log("[CONFIRM] Caller cancelled");
     return repeatStep(res); // 302 → Cancelled Greeting
   }
 
+  // NOTE: Some Exotel Gather→Passthru wirings don't pass the pressed digit
+  // reliably (digits arrives empty). Since the caller has already gone through
+  // every step and all booking data is present in the session, we treat
+  // reaching this point (with anything except an explicit "2") as confirmation.
+  // Only an explicit "2" cancels.
+  console.log("[CONFIRM] Proceeding to save (digits=" + (digits || "empty") + ")");
+
   // Validate required fields before saving
-  if (!s.gameId || !s.dateKey || !s.timeSlot || !s.group || !s.phone || !s.pay) {
-    console.log("[ROUTE-CONFIRM] Missing fields");
-    return repeatStep(res);
+  if (!s.gameId || !s.dateKey || !s.timeSlot || !s.group || !s.pay) {
+    console.log("[CONFIRM] Missing fields: " + JSON.stringify({
+      game:s.gameId, date:s.dateKey, time:s.timeSlot, group:s.group, pay:s.pay
+    }));
+    return repeatStep(res); // 302 → Cancelled/error Greeting
   }
+
+  // Ensure phone exists (auto-captured earlier; fallback if somehow missing)
+  if (!s.phone) {
+    const callerNum = (params.CallFrom || params.From || "").replace(/[^0-9]/g, "");
+    const phMatch = callerNum.match(/([6-9]\d{9})/);
+    s.phone = phMatch ? phMatch[1] : (callerNum.slice(-10) || "0000000000");
+  }
+  if (!s.name) s.name = "Caller " + s.phone.slice(-4);
 
   try {
     const b = new Booking({
@@ -584,7 +642,7 @@ app.all("/exotel/step/route-confirm", async (req, res) => {
       date:     s.date,
       timeSlot: s.timeSlot,
       group:    s.group,
-      name:     s.name || "Caller",
+      name:     s.name,
       phone:    s.phone,
       pay:      s.pay,
       lang:     s.lang || "en",
@@ -593,12 +651,27 @@ app.all("/exotel/step/route-confirm", async (req, res) => {
     await b.save();
     s.bookingId = b.id;
     sessions[sid] = s;
-    console.log("[ROUTE-CONFIRM] Booking saved: " + b.id);
+    console.log("[CONFIRM] ✓ Booking saved: " + b.id);
+    sendBookingSMS(b); // fire-and-forget confirmation SMS
     proceed(res); // 200 → Confirmed Greeting
   } catch (e) {
-    console.error("[ROUTE-CONFIRM] Save error:", e.message);
-    repeatStep(res);
+    console.error("[CONFIRM] Save error:", e.message);
+    return repeatStep(res); // 302 → error/cancelled Greeting
   }
+});
+
+// ── STEP: route-confirm (LEGACY — no longer needed) ───────────────────────────
+// Kept as a harmless passthrough in case your flow still references it.
+// It just proceeds based on whether a booking was already saved.
+app.all("/exotel/step/route-confirm", async (req, res) => {
+  const params = req.method === "POST" ? req.body : req.query;
+  const { sid, s } = getExoSession(params);
+  if (s && s.bookingId) {
+    console.log("[ROUTE-CONFIRM] booking exists (" + s.bookingId + ") → confirmed");
+    return proceed(res);
+  }
+  console.log("[ROUTE-CONFIRM] no booking → cancelled");
+  return repeatStep(res);
 });
 
 // ── STEP: Get available slots info (for Exotel Greeting prompt) ───────────────
@@ -884,6 +957,7 @@ app.post("/api/public/booking", async (req, res) => {
     dateKey, date, timeSlot, group, name, phone, pay, lang:"web", status:"confirmed",
   });
   await b.save();
+  sendBookingSMS(b); // fire-and-forget confirmation SMS
   res.json(b);
 });
 
@@ -1007,6 +1081,7 @@ app.all("/voicebot/save-booking", async (req, res) => {
   });
   await b.save();
   console.log("[VOICEBOT] Booking saved: " + b.id);
+  sendBookingSMS(b); // fire-and-forget confirmation SMS
 
   res.json({
     success:   true,
